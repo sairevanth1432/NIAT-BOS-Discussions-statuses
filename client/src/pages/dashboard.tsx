@@ -77,21 +77,38 @@ function getFieldIcon(colName: string) {
 
 const PRIMARY_FIELDS = ["Code", "Last meeting Status", "Upcoming Action Items", "Sheet Link"];
 
+function getRowStatus(row: Record<string, string>, statusFields: string[]): { key: string; label: string } {
+  if (statusFields.length === 1) {
+    return { key: getStatusKey(row[statusFields[0]] || ""), label: row[statusFields[0]] || "" };
+  }
+  let worstKey = "7";
+  let worstVal = "";
+  for (const field of statusFields) {
+    const key = getStatusKey(row[field] || "");
+    if (Number(key) < Number(worstKey)) {
+      worstKey = key;
+      worstVal = row[field] || "";
+    }
+  }
+  return { key: worstKey, label: worstVal };
+}
+
 function UniversityCard({
   row,
   index,
-  statusField,
+  statusFields,
   universityField,
   allHeaders,
 }: {
   row: Record<string, string>;
   index: number;
-  statusField: string;
+  statusFields: string[];
   universityField: string;
   allHeaders: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
-  const cfg = getStatusConfig(row[statusField] || "");
+  const { key: statusKey } = getRowStatus(row, statusFields);
+  const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG["0"];
 
   const sheetLink = row["Sheet Link"] || "";
   const hasSheetLink = isLinkValue(sheetLink);
@@ -209,7 +226,7 @@ function DetailModal({
   categoryKey,
   rows,
   allHeaders,
-  statusField,
+  statusFields,
   universityField,
 }: {
   open: boolean;
@@ -217,7 +234,7 @@ function DetailModal({
   categoryKey: string;
   rows: Record<string, string>[];
   allHeaders: string[];
-  statusField: string;
+  statusFields: string[];
   universityField: string;
 }) {
   const [detailSearch, setDetailSearch] = useState("");
@@ -265,7 +282,7 @@ function DetailModal({
                 key={i}
                 row={row}
                 index={i}
-                statusField={statusField}
+                statusFields={statusFields}
                 universityField={universityField}
                 allHeaders={allHeaders}
               />
@@ -293,9 +310,19 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     return reportData.headers;
   }, [reportData]);
 
-  const statusField = useMemo(() => {
-    const found = allHeaders.find((h: string) => h.toLowerCase().includes("bos status") || h.toLowerCase().includes("status"));
-    return found || "BOS Status";
+  const statusFields = useMemo(() => {
+    const hasBosStatus = allHeaders.find((h: string) => h.toLowerCase() === "bos status");
+    if (hasBosStatus) return [hasBosStatus];
+
+    const semesterStatusCols = allHeaders.filter((h: string) => {
+      const lower = h.toLowerCase();
+      return (lower.includes("semester") && lower.includes("status")) ||
+             (lower.includes("sem") && lower.includes("alignment"));
+    });
+    if (semesterStatusCols.length > 0) return semesterStatusCols;
+
+    const fallback = allHeaders.find((h: string) => h.toLowerCase().includes("status"));
+    return fallback ? [fallback] : ["BOS Status"];
   }, [allHeaders]);
 
   const universityField = useMemo(() => {
@@ -314,7 +341,7 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     const statusCounts: Record<string, number> = {};
 
     rows.forEach((row: any) => {
-      const key = getStatusKey(row[statusField] || "");
+      const key = getRowStatus(row, statusFields).key;
       statusCounts[key] = (statusCounts[key] || 0) + 1;
       const cfg = STATUS_CONFIG[key] || STATUS_CONFIG["0"];
       if (categoryRows[cfg.category]) {
@@ -323,7 +350,7 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     });
 
     return { rows, total, categoryRows, statusCounts };
-  }, [reportData, universityField, statusField]);
+  }, [reportData, universityField, statusFields]);
 
   const handleExportCSV = () => {
     if (!analysis || !allHeaders.length) return;
@@ -457,7 +484,7 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
           categoryKey={expandedCategory}
           rows={analysis.categoryRows[expandedCategory] || []}
           allHeaders={allHeaders}
-          statusField={statusField}
+          statusFields={statusFields}
           universityField={universityField}
         />
       )}
