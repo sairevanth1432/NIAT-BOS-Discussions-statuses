@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   AlertCircle, RefreshCw, Building2, CheckCircle2, Clock, AlertTriangle,
   FileSpreadsheet, Search, FileDown, XCircle, Loader2, CalendarDays,
-  MessageSquare, ListTodo, ArrowUpDown
+  MessageSquare, ListTodo, ArrowUpDown, Link as LinkIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -18,7 +18,9 @@ import { useMemo, useState, useEffect } from "react";
 
 const DASHBOARD_TABS = ["Statuses NIAT'24", "Statuses NIAT'25", "Statuses NIAT'26"];
 
-const VISIBLE_COLUMNS = [
+const SHOW_ALL_COLUMNS_TABS = ["Statuses NIAT'24", "Statuses NIAT'25"];
+
+const NIAT26_COLUMNS = [
   "University",
   "BOS Status",
   "Last meeting Status",
@@ -49,7 +51,6 @@ function getStatusConfig(statusStr: string) {
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = getStatusConfig(status);
-  const Icon = cfg.icon;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.color} ${cfg.bg} border ${cfg.border}`}>
       <span className={`w-2 h-2 rounded-full ${cfg.dotColor}`} />
@@ -58,7 +59,178 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function NIATTabDashboard({ tabName, config }: { tabName: string; config: any }) {
+function isLinkValue(value: string): boolean {
+  return /^https?:\/\//.test(value?.trim());
+}
+
+function AllColumnsTabView({ tabName, config }: { tabName: string; config: any }) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const { data: reportData, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
+    queryFn: () => fetchSheetData(config, tabName),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  const allColumns = useMemo(() => {
+    if (!reportData || !reportData.headers) return [];
+    return reportData.headers;
+  }, [reportData]);
+
+  const rows = useMemo(() => {
+    if (!reportData || reportData.data.length === 0) return [];
+    return reportData.data.filter(r => {
+      const firstCol = allColumns[0];
+      return firstCol ? r[firstCol]?.trim() : true;
+    });
+  }, [reportData, allColumns]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchTerm) return rows;
+    const lower = searchTerm.toLowerCase();
+    return rows.filter((row) =>
+      allColumns.some((col: string) => (row[col] || "").toLowerCase().includes(lower))
+    );
+  }, [rows, searchTerm, allColumns]);
+
+  const handleExportCSV = () => {
+    if (!filteredRows.length || !allColumns.length) return;
+    const csvRows = [allColumns.join(",")];
+    filteredRows.forEach((row: any) => {
+      csvRows.push(allColumns.map((h: string) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
+    });
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${tabName.replace(/'/g, "")}_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 pt-4">
+        <Skeleton className="h-[400px] rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error || !reportData) {
+    return (
+      <div className="pt-4 space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Loading Data</AlertTitle>
+          <AlertDescription>{(error as Error)?.message || "Failed to fetch data."}</AlertDescription>
+        </Alert>
+        <Button onClick={() => refetch()} variant="outline">Try Again</Button>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="pt-12 text-center text-muted-foreground">
+        <FileSpreadsheet className="w-14 h-14 mx-auto mb-4 opacity-30" />
+        <p className="text-lg font-semibold">No Data Yet</p>
+        <p className="text-sm mt-1">"{tabName}" doesn't have any records yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pt-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Last synced: {format(new Date(reportData.lastUpdated), "MMM d, yyyy 'at' h:mm a")}
+          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {filteredRows.length} of {rows.length} records
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2" data-testid="button-export">
+            <FileDown className="w-3.5 h-3.5" /> Export CSV
+          </Button>
+          <Button size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2" data-testid="button-refresh">
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+            {isRefetching ? "Syncing..." : "Refresh"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative w-full md:w-80">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search across all columns..."
+          className="pl-9 h-9"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          data-testid="input-search"
+        />
+      </div>
+
+      <Card className="shadow-sm">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" data-testid="table-all-columns">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  {allColumns.map((col: string, idx: number) => (
+                    <th key={idx} className="px-4 py-3 text-left font-semibold text-muted-foreground text-xs uppercase tracking-wider whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((row: any, rowIdx: number) => (
+                  <tr key={row._rowIndex || rowIdx} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors" data-testid={`row-data-${rowIdx}`}>
+                    {allColumns.map((col: string, colIdx: number) => {
+                      const val = row[col] || "";
+                      const isBosStatus = col.toLowerCase().includes("status");
+                      const isLink = isLinkValue(val);
+                      return (
+                        <td key={colIdx} className="px-4 py-3 align-top">
+                          {isBosStatus && val ? (
+                            <div className="space-y-1">
+                              <StatusBadge status={val} />
+                              <p className="text-xs text-muted-foreground leading-relaxed">{val}</p>
+                            </div>
+                          ) : isLink ? (
+                            <a href={val} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-sm">
+                              <LinkIcon className="w-3 h-3" /> View
+                            </a>
+                          ) : (
+                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{val || <span className="text-muted-foreground italic">—</span>}</p>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {filteredRows.length === 0 && (
+        <Card className="shadow-sm">
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">No matching records</p>
+            <p className="text-sm mt-1">Try adjusting your search.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
@@ -94,7 +266,7 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       result = result.filter((row) =>
-        VISIBLE_COLUMNS.some((col) => (row[col] || "").toLowerCase().includes(lower))
+        NIAT26_COLUMNS.some((col) => (row[col] || "").toLowerCase().includes(lower))
       );
     }
 
@@ -117,18 +289,11 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
     return result;
   }, [analysis, searchTerm, statusFilter, sortConfig]);
 
-  const handleSort = (key: string) => {
-    setSortConfig(prev => {
-      if (prev?.key === key && prev.direction === "asc") return { key, direction: "desc" };
-      return { key, direction: "asc" };
-    });
-  };
-
   const handleExportCSV = () => {
     if (!filteredData.length) return;
-    const csvRows = [VISIBLE_COLUMNS.join(",")];
+    const csvRows = [NIAT26_COLUMNS.join(",")];
     filteredData.forEach((row) => {
-      csvRows.push(VISIBLE_COLUMNS.map((h) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
+      csvRows.push(NIAT26_COLUMNS.map((h) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
     });
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -175,7 +340,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
 
   return (
     <div className="space-y-6 pt-2">
-      {/* Sync + Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <p className="text-sm text-muted-foreground">
           Last synced: {format(new Date(reportData.lastUpdated), "MMM d, yyyy 'at' h:mm a")}
@@ -191,7 +355,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <button onClick={() => { setStatusFilter("all"); }} className="text-left focus:outline-none" data-testid="card-total">
           <Card className={`relative overflow-hidden border-0 shadow-md hover:shadow-lg transition-all h-full ${statusFilter === "all" ? "ring-2 ring-blue-400 ring-offset-2" : ""}`}>
@@ -268,7 +431,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
         </button>
       </div>
 
-      {/* Status Breakdown Pills */}
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Filter by Status</CardTitle>
@@ -298,6 +460,7 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
               <button
                 onClick={() => setStatusFilter("all")}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted border border-dashed border-border transition-all"
+                data-testid="button-clear-filter"
               >
                 Clear filter
               </button>
@@ -306,7 +469,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
         </CardContent>
       </Card>
 
-      {/* Search */}
       <div className="relative w-full md:w-80">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
@@ -318,14 +480,12 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
         />
       </div>
 
-      {/* Results count */}
       {(statusFilter !== "all" || searchTerm) && (
         <p className="text-sm text-muted-foreground">
           Showing {filteredData.length} of {analysis.total} universities
         </p>
       )}
 
-      {/* University Cards - Full detail view */}
       {filteredData.length > 0 ? (
         <div className="space-y-4">
           {filteredData.map((row, i) => {
@@ -333,7 +493,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
             return (
               <Card key={row._rowIndex || i} className={`shadow-sm hover:shadow-md transition-shadow border-l-4 ${statusCfg.border}`} data-testid={`card-university-${i}`}>
                 <CardContent className="p-5">
-                  {/* University Header */}
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`h-10 w-10 rounded-xl ${statusCfg.bg} flex items-center justify-center shrink-0`}>
@@ -351,9 +510,7 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
                     </div>
                   </div>
 
-                  {/* Detail Grid */}
                   <div className="grid gap-4 md:grid-cols-3">
-                    {/* Last Meeting Status */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -364,7 +521,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
                       </p>
                     </div>
 
-                    {/* Upcoming Action Items */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         <ListTodo className="w-3.5 h-3.5" />
@@ -375,7 +531,6 @@ function NIATTabDashboard({ tabName, config }: { tabName: string; config: any })
                       </p>
                     </div>
 
-                    {/* Timeline */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         <CalendarDays className="w-3.5 h-3.5" />
@@ -417,7 +572,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!config) return;
     if (config.sheetNames && config.sheetNames.length > 0) {
-      const filtered = config.sheetNames.filter(t => DASHBOARD_TABS.includes(t));
+      const filtered = config.sheetNames.filter((t: string) => DASHBOARD_TABS.includes(t));
       const finalTabs = filtered.length > 0 ? filtered : DASHBOARD_TABS;
       setTabs(finalTabs);
       setActiveTab(finalTabs[finalTabs.length - 1]);
@@ -427,7 +582,7 @@ export default function Dashboard() {
           config.sheetNames = result.sheetNames;
           config.spreadsheetTitle = result.title;
           saveConfig(config);
-          const filtered = result.sheetNames.filter(t => DASHBOARD_TABS.includes(t));
+          const filtered = result.sheetNames.filter((t: string) => DASHBOARD_TABS.includes(t));
           const finalTabs = filtered.length > 0 ? filtered : DASHBOARD_TABS;
           setTabs(finalTabs);
           setActiveTab(finalTabs[finalTabs.length - 1]);
@@ -486,7 +641,11 @@ export default function Dashboard() {
           </div>
           {tabs.map((tab) => (
             <TabsContent key={tab} value={tab} className="mt-4">
-              <NIATTabDashboard tabName={tab} config={config} />
+              {SHOW_ALL_COLUMNS_TABS.includes(tab) ? (
+                <AllColumnsTabView tabName={tab} config={config} />
+              ) : (
+                <NIAT26TabDashboard tabName={tab} config={config} />
+              )}
             </TabsContent>
           ))}
         </Tabs>
