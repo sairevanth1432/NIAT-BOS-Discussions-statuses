@@ -145,9 +145,15 @@ function NIATTabDashboard({ tabName, config, showAllColumns }: { tabName: string
     }
 
     if (sortConfig) {
+      const isDateCol = sortConfig.key.toLowerCase().includes("timeline");
       result.sort((a, b) => {
         const aVal = a[sortConfig.key] || "";
         const bVal = b[sortConfig.key] || "";
+        if (isDateCol) {
+          const aTime = Date.parse(aVal) || 0;
+          const bTime = Date.parse(bVal) || 0;
+          return sortConfig.direction === "asc" ? aTime - bTime : bTime - aTime;
+        }
         return sortConfig.direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       });
     }
@@ -336,15 +342,41 @@ function NIATTabDashboard({ tabName, config, showAllColumns }: { tabName: string
         </CardContent>
       </Card>
 
-      <div className="relative w-full md:w-80">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search universities, status, action items..."
-          className="pl-9 h-9"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          data-testid="input-search"
-        />
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search universities, status, action items..."
+            className="pl-9 h-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            data-testid="input-search"
+          />
+        </div>
+        <Button
+          variant={sortConfig?.key.toLowerCase().includes("timeline") ? "default" : "outline"}
+          size="sm"
+          className="gap-2 shrink-0"
+          onClick={() => {
+            const timelineCol = displayColumns.find(c => c.toLowerCase().includes("timeline")) || "Timeline to Close - Action Items";
+            if (sortConfig?.key === timelineCol) {
+              if (sortConfig.direction === "asc") {
+                setSortConfig({ key: timelineCol, direction: "desc" });
+              } else {
+                setSortConfig(null);
+              }
+            } else {
+              setSortConfig({ key: timelineCol, direction: "asc" });
+            }
+          }}
+          data-testid="button-sort-timeline"
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          Sort by Timeline
+          {sortConfig?.key.toLowerCase().includes("timeline") && (
+            <span className="text-xs">{sortConfig.direction === "asc" ? "(Earliest)" : "(Latest)"}</span>
+          )}
+        </Button>
       </div>
 
       {(statusFilter !== "all" || searchTerm) && (
