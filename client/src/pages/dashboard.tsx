@@ -80,6 +80,8 @@ function NIATTabDashboard({ tabName, config, showAllColumns }: { tabName: string
     queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
     queryFn: () => fetchSheetData(config, tabName),
     refetchInterval: 12 * 60 * 60 * 1000,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const allHeaders = useMemo(() => {
