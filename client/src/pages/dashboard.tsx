@@ -9,12 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   AlertCircle, RefreshCw, Building2, CheckCircle2, Clock, AlertTriangle,
   FileSpreadsheet, Search, FileDown, XCircle, Loader2, CalendarDays,
-  MessageSquare, ListTodo, Link as LinkIcon, Info, X, ChevronRight
+  MessageSquare, ListTodo, Link as LinkIcon, Info, X, ChevronRight, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 
 const DASHBOARD_TABS = ["Statuses NIAT'24", "Statuses NIAT'25", "Statuses NIAT'26"];
 
@@ -377,6 +377,90 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
   );
 }
 
+function YearSelector({
+  tabs,
+  activeTab,
+  onSelect,
+  yearFromTab,
+}: {
+  tabs: string[];
+  activeTab: string;
+  onSelect: (tab: string) => void;
+  yearFromTab: (tab: string) => string;
+}) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const latestTab = tabs[tabs.length - 1];
+  const olderTabs = tabs.slice(0, -1);
+  const isLatestActive = activeTab === latestTab;
+
+  return (
+    <div className="flex items-center gap-2" ref={dropdownRef}>
+      <button
+        onClick={() => onSelect(latestTab)}
+        className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+          isLatestActive
+            ? "bg-primary text-primary-foreground shadow-md"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
+        }`}
+        data-testid="tab-2026"
+      >
+        {yearFromTab(latestTab)}
+      </button>
+
+      {olderTabs.length > 0 && (
+        <div className="relative">
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+              !isLatestActive
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+            data-testid="dropdown-older-years"
+          >
+            {!isLatestActive ? yearFromTab(activeTab) : "Previous Years"}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full mt-1.5 bg-popover border border-border rounded-xl shadow-lg py-1 min-w-[120px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              {olderTabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    onSelect(tab);
+                    setDropdownOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                    activeTab === tab
+                      ? "bg-accent text-accent-foreground font-semibold"
+                      : "text-foreground hover:bg-accent/50"
+                  }`}
+                  data-testid={`dropdown-item-${yearFromTab(tab)}`}
+                >
+                  {yearFromTab(tab)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const config = loadConfig();
@@ -440,23 +524,13 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Year Selector */}
-          <div className="flex gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  activeTab === tab
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-                data-testid={`tab-${tab.replace(/['\s]/g, "-").toLowerCase()}`}
-              >
-                {yearFromTab(tab)}
-              </button>
-            ))}
-          </div>
+          {/* Year Selector - 2026 prominent, others in dropdown */}
+          <YearSelector
+            tabs={tabs}
+            activeTab={activeTab}
+            onSelect={setActiveTab}
+            yearFromTab={yearFromTab}
+          />
         </div>
 
         {/* Active Tab Content */}
