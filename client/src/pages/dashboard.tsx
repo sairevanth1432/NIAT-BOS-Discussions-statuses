@@ -298,7 +298,7 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
             </div>
             <div>
               <p className="text-3xl font-bold text-foreground">{analysis.total}</p>
-              <p className="text-sm text-muted-foreground">Total Universities Tracked</p>
+              <p className="text-sm text-muted-foreground">Total Universities</p>
             </div>
           </div>
         </div>
