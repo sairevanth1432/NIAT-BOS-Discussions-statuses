@@ -8,10 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, CheckCircle2, FileSpreadsheet, KeyRound, Hash, Info } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, FileSpreadsheet, KeyRound, Hash, Info, ExternalLink, Copy } from "lucide-react";
 import { validateSheet, saveConfig, type SheetConfig } from "@/lib/sheets-api";
 import { useToast } from "@/hooks/use-toast";
 import heroBg from "@/assets/hero-bg.png";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const formSchema = z.object({
   sheetId: z.string().min(5, "Sheet ID must be at least 5 characters"),
@@ -24,6 +30,7 @@ export default function Home() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -37,12 +44,13 @@ export default function Home() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setValidationError(null);
+    setErrorType(null);
 
     try {
       const config: SheetConfig = {
-        sheetId: values.sheetId,
-        apiKey: values.apiKey,
-        sheetName: values.sheetName || undefined,
+        sheetId: values.sheetId.trim(),
+        apiKey: values.apiKey.trim(),
+        sheetName: values.sheetName?.trim() || undefined,
       };
 
       const result = await validateSheet(config);
@@ -61,9 +69,10 @@ export default function Home() {
         setTimeout(() => setLocation("/dashboard"), 800);
       } else {
         setValidationError(result.error || "Could not connect to the spreadsheet.");
+        setErrorType((result as any).errorType || null);
       }
     } catch (error: any) {
-      setValidationError("Network error. Please check your connection and try again.");
+      setValidationError("Network error. Please check your internet connection and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -72,7 +81,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* Hero Section */}
-      <div className="relative w-full lg:w-2/3 bg-slate-900 overflow-hidden flex flex-col justify-center items-center text-white p-8 md:p-12 min-h-[300px] lg:min-h-screen">
+      <div className="relative w-full lg:w-1/2 xl:w-2/3 bg-slate-900 overflow-hidden flex flex-col justify-center items-center text-white p-8 md:p-12 min-h-[300px] lg:min-h-screen">
         <div
           className="absolute inset-0 z-0 opacity-40 mix-blend-overlay"
           style={{
@@ -89,7 +98,7 @@ export default function Home() {
             </span>
             Google Sheets API v4
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight">
             Turn your <span className="text-blue-400">Spreadsheets</span> into{" "}
             <span className="text-emerald-400">Insights</span>.
           </h1>
@@ -97,20 +106,73 @@ export default function Home() {
             Connect your Google Sheets to generate live dashboards, summary statistics, and sortable reports automatically.
           </p>
 
-          <div className="space-y-3 pt-6 border-t border-white/10">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">How to get started</h3>
-            <ol className="list-decimal list-inside text-sm text-slate-300 space-y-2">
-              <li>Get a Google API Key from the <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" className="text-blue-400 underline">Google Cloud Console</a></li>
-              <li>Enable the <strong>Google Sheets API</strong> in your project</li>
-              <li>Make your spreadsheet <strong>viewable by anyone with the link</strong></li>
-              <li>Paste your Sheet ID and API Key on the right</li>
-            </ol>
+          {/* Setup Guide Accordion */}
+          <div className="pt-6 border-t border-white/10">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Setup Guide</h3>
+            <Accordion type="single" collapsible className="space-y-2">
+              <AccordionItem value="step1" className="border border-white/10 rounded-lg px-4 bg-white/5">
+                <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
+                  Step 1: Create a Google API Key
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-slate-300 space-y-2">
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" className="text-blue-400 underline inline-flex items-center gap-1">Google Cloud Console <ExternalLink className="w-3 h-3" /></a></li>
+                    <li>Create a new project (or select an existing one)</li>
+                    <li>Click <strong>"+ CREATE CREDENTIALS"</strong> at the top</li>
+                    <li>Select <strong>"API key"</strong></li>
+                    <li>Copy the generated key</li>
+                  </ol>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="step2" className="border border-white/10 rounded-lg px-4 bg-white/5">
+                <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
+                  Step 2: Enable Google Sheets API
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-slate-300 space-y-2">
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>In Google Cloud Console, go to <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank" rel="noopener" className="text-blue-400 underline inline-flex items-center gap-1">Sheets API page <ExternalLink className="w-3 h-3" /></a></li>
+                    <li>Click the blue <strong>"ENABLE"</strong> button</li>
+                    <li>Wait a few seconds for it to activate</li>
+                  </ol>
+                  <p className="text-amber-300 text-xs mt-2">This is the most commonly missed step!</p>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="step3" className="border border-white/10 rounded-lg px-4 bg-white/5">
+                <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
+                  Step 3: Share Your Spreadsheet
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-slate-300 space-y-2">
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>Open your Google Spreadsheet</li>
+                    <li>Click the <strong>"Share"</strong> button (top-right)</li>
+                    <li>Under "General access", change to <strong>"Anyone with the link"</strong></li>
+                    <li>Set the role to <strong>"Viewer"</strong></li>
+                    <li>Click <strong>"Done"</strong></li>
+                  </ol>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="step4" className="border border-white/10 rounded-lg px-4 bg-white/5">
+                <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
+                  Step 4: Find Your Sheet ID
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-slate-300 space-y-2">
+                  <p>Your Sheet ID is in the spreadsheet URL:</p>
+                  <div className="bg-black/30 rounded p-2 font-mono text-xs break-all">
+                    https://docs.google.com/spreadsheets/d/<span className="text-emerald-400 font-bold">1BxiMVs0XRA5nFMdKvBdBZjGmuDJp6...</span>/edit
+                  </div>
+                  <p className="text-xs">Copy the highlighted part between <code>/d/</code> and <code>/edit</code></p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
         </div>
       </div>
 
       {/* Form Section */}
-      <div className="w-full lg:w-1/3 flex items-center justify-center p-6 md:p-8 bg-background">
+      <div className="w-full lg:w-1/2 xl:w-1/3 flex items-center justify-center p-6 md:p-8 bg-background">
         <Card className="w-full max-w-md shadow-xl border-slate-200 dark:border-slate-800">
           <CardHeader className="space-y-1">
             <div className="flex items-center gap-2 text-primary mb-2">
@@ -119,7 +181,7 @@ export default function Home() {
             </div>
             <CardTitle className="text-2xl font-bold">Connect Your Sheet</CardTitle>
             <CardDescription>
-              Enter your credentials to link a Google Sheet.
+              Enter your Google API Key and Sheet ID to get started.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -127,7 +189,17 @@ export default function Home() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Connection Failed</AlertTitle>
-                <AlertDescription>{validationError}</AlertDescription>
+                <AlertDescription className="text-sm mt-1">{validationError}</AlertDescription>
+                {errorType === "API_NOT_ENABLED" && (
+                  <a
+                    href="https://console.cloud.google.com/apis/library/sheets.googleapis.com"
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium underline"
+                  >
+                    Enable Google Sheets API <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </Alert>
             )}
 
@@ -146,7 +218,7 @@ export default function Home() {
                         <Input type="password" placeholder="AIzaSy..." {...field} className="font-mono text-sm" data-testid="input-api-key" />
                       </FormControl>
                       <FormDescription className="text-xs">
-                        Your key stays in your browser. Never sent to our servers for storage.
+                        From Google Cloud Console &gt; Credentials
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -166,7 +238,7 @@ export default function Home() {
                         <Input placeholder="1BxiMVs0XRA5nFMd..." {...field} className="font-mono text-sm" data-testid="input-sheet-id" />
                       </FormControl>
                       <FormDescription className="text-xs">
-                        Found in the spreadsheet URL between /d/ and /edit
+                        The long string from your spreadsheet URL
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -180,13 +252,13 @@ export default function Home() {
                     <FormItem>
                       <FormLabel className="flex items-center gap-1.5">
                         <Info className="w-3.5 h-3.5" />
-                        Sheet Tab Name <span className="text-muted-foreground">(optional)</span>
+                        Tab Name <span className="text-muted-foreground font-normal">(optional)</span>
                       </FormLabel>
                       <FormControl>
                         <Input placeholder="Sheet1" {...field} className="text-sm" data-testid="input-sheet-name" />
                       </FormControl>
                       <FormDescription className="text-xs">
-                        Leave empty to use the first tab.
+                        Leave empty to use the first tab
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

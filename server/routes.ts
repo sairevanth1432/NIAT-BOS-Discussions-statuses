@@ -16,8 +16,15 @@ export async function registerRoutes(
 
   app.post("/api/sheets/validate", async (req, res) => {
     try {
-      const { sheetId, apiKey } = fetchSheetSchema.parse(req.body);
+      const parsed = fetchSheetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          valid: false,
+          error: "Please provide a valid Sheet ID (at least 5 characters) and API Key (at least 10 characters).",
+        });
+      }
 
+      const { sheetId, apiKey } = parsed.data;
       const sheets = google.sheets({ version: "v4", auth: apiKey });
 
       const spreadsheet = await sheets.spreadsheets.get({
@@ -34,25 +41,70 @@ export async function registerRoutes(
         sheetNames,
       });
     } catch (error: any) {
-      const status = error?.response?.status || error?.code;
-      if (status === 403 || status === 401) {
-        return res.status(401).json({ valid: false, error: "Invalid API Key or insufficient permissions." });
+      const gaxiosError = error?.response?.data?.error;
+      const httpStatus = error?.response?.status || error?.code;
+      const errorMessage = gaxiosError?.message || error?.message || "";
+
+      console.error("Sheet validation error:", httpStatus, errorMessage);
+
+      if (httpStatus === 403) {
+        if (errorMessage.includes("API has not been used") || errorMessage.includes("API has not been enabled") || errorMessage.includes("sheets.googleapis.com")) {
+          return res.status(403).json({
+            valid: false,
+            error: "The Google Sheets API is not enabled for your project. Go to Google Cloud Console > APIs & Services > Enable APIs, search for 'Google Sheets API' and enable it.",
+            errorType: "API_NOT_ENABLED",
+          });
+        }
+        return res.status(403).json({
+          valid: false,
+          error: "Access denied. This could mean: (1) Your API key is invalid or restricted, (2) The spreadsheet is not shared publicly. Make the sheet 'Anyone with the link can view'.",
+          errorType: "FORBIDDEN",
+        });
       }
-      if (status === 404) {
-        return res.status(404).json({ valid: false, error: "Spreadsheet not found. Check the Sheet ID and make sure it is shared publicly or with your service account." });
+
+      if (httpStatus === 401) {
+        return res.status(401).json({
+          valid: false,
+          error: "Invalid API Key. Please double-check it in Google Cloud Console > APIs & Services > Credentials.",
+          errorType: "INVALID_KEY",
+        });
       }
-      console.error("Sheet validation error:", error?.message || error);
-      return res.status(400).json({ valid: false, error: "Could not access this spreadsheet. Please verify the Sheet ID and API Key." });
+
+      if (httpStatus === 404) {
+        return res.status(404).json({
+          valid: false,
+          error: "Spreadsheet not found. Make sure the Sheet ID is correct (it's the long string in the URL between '/d/' and '/edit').",
+          errorType: "NOT_FOUND",
+        });
+      }
+
+      if (httpStatus === 400) {
+        return res.status(400).json({
+          valid: false,
+          error: "Invalid request. The Sheet ID format appears incorrect. Copy it from your spreadsheet URL.",
+          errorType: "BAD_REQUEST",
+        });
+      }
+
+      return res.status(500).json({
+        valid: false,
+        error: `Connection failed: ${errorMessage || "Unknown error"}. Please verify your API Key and Sheet ID.`,
+        errorType: "UNKNOWN",
+      });
     }
   });
 
   app.post("/api/sheets/data", async (req, res) => {
     try {
-      const { sheetId, apiKey, sheetName } = fetchSheetSchema.parse(req.body);
+      const parsed = fetchSheetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request parameters." });
+      }
 
+      const { sheetId, apiKey, sheetName } = parsed.data;
       const sheets = google.sheets({ version: "v4", auth: apiKey });
 
-      const range = sheetName ? `${sheetName}` : "Sheet1";
+      const range = sheetName || "Sheet1";
 
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
@@ -93,10 +145,20 @@ export async function registerRoutes(
         lastUpdated: new Date().toISOString(),
       });
     } catch (error: any) {
-      console.error("Sheet data fetch error:", error?.message || error);
-      const status = error?.response?.status || 500;
-      return res.status(status >= 400 ? status : 500).json({
-        error: "Failed to fetch sheet data. Please verify your Sheet ID, API Key, and sheet name.",
+      const gaxiosError = error?.response?.data?.error;
+      const httpStatus = error?.response?.status;
+      const errorMessage = gaxiosError?.message || error?.message || "Unknown error";
+
+      console.error("Sheet data fetch error:", httpStatus, errorMessage);
+
+      if (httpStatus === 400 && errorMessage.includes("Unable to parse range")) {
+        return res.status(400).json({
+          error: `Sheet tab "${req.body.sheetName}" was not found. Check the exact tab name in your spreadsheet (it's case-sensitive).`,
+        });
+      }
+
+      return res.status(httpStatus >= 400 ? httpStatus : 500).json({
+        error: `Failed to fetch data: ${errorMessage}`,
       });
     }
   });
