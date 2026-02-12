@@ -422,33 +422,28 @@ export default function Dashboard() {
   const config = loadConfig();
   const [tabs, setTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("");
+  const [title, setTitle] = useState(config?.spreadsheetTitle || "University BOS Dashboard");
 
   useEffect(() => {
     if (!config) return;
-    if (config.sheetNames && config.sheetNames.length > 0) {
-      const filtered = config.sheetNames.filter((t: string) => DASHBOARD_TABS.includes(t));
-      const finalTabs = filtered.length > 0 ? filtered : DASHBOARD_TABS;
-      setTabs(finalTabs);
-      setActiveTab(finalTabs[finalTabs.length - 1]);
-    } else {
-      validateSheet(config).then((result) => {
-        if (result.valid && result.sheetNames) {
-          config.sheetNames = result.sheetNames;
-          config.spreadsheetTitle = result.title;
-          saveConfig(config);
-          const filtered = result.sheetNames.filter((t: string) => DASHBOARD_TABS.includes(t));
-          const finalTabs = filtered.length > 0 ? filtered : DASHBOARD_TABS;
-          setTabs(finalTabs);
-          setActiveTab(finalTabs[finalTabs.length - 1]);
-        } else {
-          setTabs(DASHBOARD_TABS);
-          setActiveTab(DASHBOARD_TABS[DASHBOARD_TABS.length - 1]);
-        }
-      }).catch(() => {
+    validateSheet(config).then((result) => {
+      if (result.valid && result.sheetNames) {
+        config.sheetNames = result.sheetNames;
+        config.spreadsheetTitle = result.title;
+        saveConfig(config);
+        setTitle(result.title || "University BOS Dashboard");
+        const filtered = result.sheetNames.filter((t: string) => DASHBOARD_TABS.includes(t));
+        const finalTabs = filtered.length > 0 ? filtered : DASHBOARD_TABS;
+        setTabs(finalTabs);
+        setActiveTab(finalTabs[finalTabs.length - 1]);
+      } else {
         setTabs(DASHBOARD_TABS);
         setActiveTab(DASHBOARD_TABS[DASHBOARD_TABS.length - 1]);
-      });
-    }
+      }
+    }).catch(() => {
+      setTabs(DASHBOARD_TABS);
+      setActiveTab(DASHBOARD_TABS[DASHBOARD_TABS.length - 1]);
+    });
   }, []);
 
   if (!config) {
@@ -473,7 +468,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="min-w-0">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground" data-testid="text-report-title">
-            {config.spreadsheetTitle || "University BOS Dashboard"}
+            {title}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             BOS status tracking across NIAT cohorts
