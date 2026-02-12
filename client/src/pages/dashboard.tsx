@@ -75,6 +75,134 @@ function getFieldIcon(colName: string) {
   return Info;
 }
 
+const PRIMARY_FIELDS = ["Code", "Last meeting Status", "Upcoming Action Items", "Sheet Link"];
+
+function UniversityCard({
+  row,
+  index,
+  statusField,
+  universityField,
+  allHeaders,
+}: {
+  row: Record<string, string>;
+  index: number;
+  statusField: string;
+  universityField: string;
+  allHeaders: string[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const cfg = getStatusConfig(row[statusField] || "");
+
+  const sheetLink = row["Sheet Link"] || "";
+  const hasSheetLink = isLinkValue(sheetLink);
+
+  const extraColumns = allHeaders.filter(
+    c => c !== universityField && !PRIMARY_FIELDS.includes(c) && c !== statusField && c !== "_rowIndex"
+  );
+
+  return (
+    <Card
+      className={`border-l-4 ${cfg.border} shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300`}
+      style={{ animationDelay: `${index * 30}ms` }}
+      data-testid={`detail-card-${index}`}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`h-9 w-9 rounded-lg ${cfg.bg} flex items-center justify-center shrink-0`}>
+              <Building2 className={`h-4 w-4 ${cfg.color}`} />
+            </div>
+            <div>
+              <h4 className="font-semibold text-foreground">{row[universityField]}</h4>
+              {row["Code"] && (
+                <p className="text-xs text-muted-foreground font-medium">Code: {row["Code"]}</p>
+              )}
+            </div>
+          </div>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.color} ${cfg.bg} border ${cfg.border} shrink-0`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
+            {cfg.label}
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {row["Last meeting Status"] && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <MessageSquare className="w-3 h-3" />
+                Last Meeting Status
+              </div>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{row["Last meeting Status"]}</p>
+            </div>
+          )}
+
+          {row["Upcoming Action Items"] && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <ListTodo className="w-3 h-3" />
+                Upcoming Action Items
+              </div>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{row["Upcoming Action Items"]}</p>
+            </div>
+          )}
+
+          {hasSheetLink && (
+            <a
+              href={sheetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-800"
+              data-testid={`link-sheet-${index}`}
+            >
+              <LinkIcon className="w-3.5 h-3.5" />
+              Open Sheet Link
+            </a>
+          )}
+        </div>
+
+        {extraColumns.some(col => row[col]?.trim()) && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              data-testid={`button-more-details-${index}`}
+            >
+              <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
+              {expanded ? "Hide Details" : "More Details"}
+            </button>
+
+            {expanded && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                {extraColumns.map((col, idx) => {
+                  const val = row[col] || "";
+                  if (!val.trim()) return null;
+                  const isLink = isLinkValue(val);
+                  const FieldIcon = getFieldIcon(col);
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <FieldIcon className="w-3 h-3" />
+                        {col}
+                      </div>
+                      {isLink ? (
+                        <a href={val} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline">
+                          <LinkIcon className="w-3 h-3" /> Open Link
+                        </a>
+                      ) : (
+                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{val}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DetailModal({
   open,
   onClose,
@@ -94,8 +222,6 @@ function DetailModal({
 }) {
   const [detailSearch, setDetailSearch] = useState("");
   const catCfg = CATEGORY_CONFIG[categoryKey];
-
-  const detailColumns = allHeaders.filter(c => c !== universityField);
 
   const filtered = useMemo(() => {
     if (!detailSearch) return rows;
@@ -134,54 +260,16 @@ function DetailModal({
               <p className="font-medium">No matching universities</p>
             </div>
           ) : (
-            filtered.map((row, i) => {
-              const cfg = getStatusConfig(row[statusField] || "");
-              return (
-                <Card key={i} className={`border-l-4 ${cfg.border} shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300`} style={{ animationDelay: `${i * 30}ms` }} data-testid={`detail-card-${i}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`h-9 w-9 rounded-lg ${cfg.bg} flex items-center justify-center shrink-0`}>
-                          <Building2 className={`h-4 w-4 ${cfg.color}`} />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-foreground">{row[universityField]}</h4>
-                          <p className="text-xs text-muted-foreground">{row[statusField] || "No status"}</p>
-                        </div>
-                      </div>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.color} ${cfg.bg} border ${cfg.border} shrink-0`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
-                        {cfg.label}
-                      </span>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {detailColumns.map((col, idx) => {
-                        const val = row[col] || "";
-                        if (!val) return null;
-                        const isLink = isLinkValue(val);
-                        const FieldIcon = getFieldIcon(col);
-                        return (
-                          <div key={idx} className="space-y-1">
-                            <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                              <FieldIcon className="w-3 h-3" />
-                              {col}
-                            </div>
-                            {isLink ? (
-                              <a href={val} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline">
-                                <LinkIcon className="w-3 h-3" /> Open
-                              </a>
-                            ) : (
-                              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{val}</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+            filtered.map((row, i) => (
+              <UniversityCard
+                key={i}
+                row={row}
+                index={i}
+                statusField={statusField}
+                universityField={universityField}
+                allHeaders={allHeaders}
+              />
+            ))
           )}
         </div>
       </DialogContent>
