@@ -79,7 +79,7 @@ function NIATTabDashboard({ tabName, config, showAllColumns }: { tabName: string
   const { data: reportData, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
     queryFn: () => fetchSheetData(config, tabName),
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: 12 * 60 * 60 * 1000,
   });
 
   const allHeaders = useMemo(() => {
