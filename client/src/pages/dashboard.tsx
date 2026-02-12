@@ -314,16 +314,25 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     const hasBosStatus = allHeaders.find((h: string) => h.toLowerCase() === "bos status");
     if (hasBosStatus) return [hasBosStatus];
 
-    const semesterStatusCols = allHeaders.filter((h: string) => {
+    const semesterBosStatusCols = allHeaders.filter((h: string) => {
       const lower = h.toLowerCase();
-      return (lower.includes("semester") && lower.includes("status")) ||
-             (lower.includes("sem") && lower.includes("alignment"));
+      return lower.includes("semester") && lower.includes("bos") && lower.includes("status");
     });
-    if (semesterStatusCols.length > 0) return semesterStatusCols;
+    if (semesterBosStatusCols.length > 0) return semesterBosStatusCols;
+
+    const semesterAlignmentCols = allHeaders.filter((h: string) => {
+      const lower = h.toLowerCase();
+      return lower.includes("sem") && lower.includes("alignment");
+    });
+    const alignmentHasStatusValues = semesterAlignmentCols.length > 0 &&
+      reportData?.data?.some((r: any) =>
+        semesterAlignmentCols.some(col => /^\d+\./.test(r[col] || ""))
+      );
+    if (alignmentHasStatusValues) return semesterAlignmentCols;
 
     const fallback = allHeaders.find((h: string) => h.toLowerCase().includes("status"));
     return fallback ? [fallback] : ["BOS Status"];
-  }, [allHeaders]);
+  }, [allHeaders, reportData]);
 
   const universityField = useMemo(() => {
     const found = allHeaders.find((h: string) => h.toLowerCase() === "university");
