@@ -1,10 +1,10 @@
 import { Layout } from "@/components/layout";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSheetData, loadConfig, type SheetDataResponse } from "@/lib/sheets-api";
+import { fetchSheetData, loadConfig } from "@/lib/sheets-api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Download, RefreshCw, TrendingUp, TrendingDown, DollarSign, Hash, BarChart3, Layers } from "lucide-react";
+import { AlertCircle, Download, RefreshCw, DollarSign, Hash, FileSpreadsheet, BarChart3, PieChartIcon, TableIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 import { format } from "date-fns";
@@ -32,20 +32,8 @@ function detectColumnTypes(headers: string[], data: Record<string, string>[]) {
   });
 }
 
-function StatCard({ title, value, subtext, icon: Icon }: { title: string; value: string; subtext: string; icon: any }) {
-  return (
-    <Card className="hover:shadow-md transition-shadow" data-testid={`stat-${title.replace(/\s/g, "-").toLowerCase()}`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold" data-testid={`value-${title.replace(/\s/g, "-").toLowerCase()}`}>{value}</div>
-        <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
-      </CardContent>
-    </Card>
-  );
-}
+const STAT_ICONS = [Hash, DollarSign, BarChart3, FileSpreadsheet];
+const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -78,56 +66,65 @@ export default function Dashboard() {
       return { header: col.header, sum, avg, min, max, count: values.length };
     });
 
-    let barChartData: { name: string; value: number }[] = [];
-    let barLabel = "";
+    const barCharts: { data: { name: string; value: number }[]; label: string }[] = [];
     if (categoricalCols.length > 0 && numericCols.length > 0) {
-      const catCol = categoricalCols[0].header;
+      const usedCatCols = categoricalCols.slice(0, 2);
       const numCol = numericCols[0].header;
-      barLabel = `${numCol} by ${catCol}`;
-      const grouped: Record<string, number> = {};
-      reportData.data.forEach((row) => {
-        const key = row[catCol] || "Unknown";
-        grouped[key] = (grouped[key] || 0) + parseNumber(row[numCol]);
+
+      usedCatCols.forEach((catCol) => {
+        const grouped: Record<string, number> = {};
+        reportData.data.forEach((row) => {
+          const key = row[catCol.header] || "Unknown";
+          grouped[key] = (grouped[key] || 0) + parseNumber(row[numCol]);
+        });
+        barCharts.push({
+          label: `${numCol} by ${catCol.header}`,
+          data: Object.entries(grouped)
+            .map(([name, value]) => ({ name: name.length > 18 ? name.slice(0, 16) + "…" : name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10),
+        });
       });
-      barChartData = Object.entries(grouped)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 12);
     }
 
-    let pieChartData: { name: string; value: number }[] = [];
-    let pieLabel = "";
+    const pieCharts: { data: { name: string; value: number }[]; label: string }[] = [];
     if (categoricalCols.length > 0) {
-      const catCol = categoricalCols[0].header;
-      pieLabel = catCol;
-      const counts: Record<string, number> = {};
-      reportData.data.forEach((row) => {
-        const key = row[catCol] || "Unknown";
-        counts[key] = (counts[key] || 0) + 1;
+      categoricalCols.slice(0, 2).forEach((catCol) => {
+        const counts: Record<string, number> = {};
+        reportData.data.forEach((row) => {
+          const key = row[catCol.header] || "Unknown";
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        pieCharts.push({
+          label: catCol.header,
+          data: Object.entries(counts)
+            .map(([name, value]) => ({ name: name.length > 20 ? name.slice(0, 18) + "…" : name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 8),
+        });
       });
-      pieChartData = Object.entries(counts)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8);
     }
 
-    return { colTypes, numericCols, categoricalCols, stats, barChartData, barLabel, pieChartData, pieLabel };
+    return { colTypes, numericCols, categoricalCols, stats, barCharts, pieCharts };
   }, [reportData]);
 
   if (isLoading) {
     return (
       <Layout>
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div className="flex justify-between items-center">
             <Skeleton className="h-8 w-64" />
             <Skeleton className="h-10 w-32" />
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
+              <Skeleton key={i} className="h-28 rounded-xl" />
             ))}
           </div>
-          <Skeleton className="h-[400px] rounded-xl" />
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+            <Skeleton className="h-[380px] rounded-xl" />
+            <Skeleton className="h-[380px] rounded-xl" />
+          </div>
         </div>
       </Layout>
     );
@@ -141,27 +138,25 @@ export default function Dashboard() {
           <AlertTitle>Error Loading Data</AlertTitle>
           <AlertDescription>{(error as Error)?.message || "Failed to fetch data from Google Sheets."}</AlertDescription>
         </Alert>
-        <Button onClick={() => refetch()} variant="outline" className="mt-4">
-          Try Again
-        </Button>
+        <Button onClick={() => refetch()} variant="outline" className="mt-4">Try Again</Button>
       </Layout>
     );
   }
 
-  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
-
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-report-title">{reportData.title}</h1>
-            <p className="text-muted-foreground" data-testid="text-last-synced">
-              Last synced: {format(new Date(reportData.lastUpdated), "PPpp")} &middot; {reportData.totalRows} rows
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate" data-testid="text-report-title">
+              {reportData.title}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1" data-testid="text-last-synced">
+              Last synced: {format(new Date(reportData.lastUpdated), "PPpp")} &middot; {reportData.totalRows} rows &middot; {reportData.headers.length} columns
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <Button variant="outline" onClick={() => window.print()} className="hidden md:flex gap-2" data-testid="button-export-pdf">
               <Download className="w-4 h-4" />
               Print / PDF
@@ -173,117 +168,202 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Stats Grid - show up to 4 numeric column summaries */}
+        {/* Stat Cards */}
         {analysis && analysis.stats.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Total Rows"
-              value={reportData.totalRows.toLocaleString()}
-              subtext={`${reportData.headers.length} columns detected`}
-              icon={Hash}
-            />
-            {analysis.stats.slice(0, 3).map((s) => (
-              <StatCard
-                key={s.header}
-                title={`${s.header} (Total)`}
-                value={s.sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                subtext={`Avg: ${s.avg.toLocaleString(undefined, { maximumFractionDigits: 2 })} | Range: ${s.min.toLocaleString()} - ${s.max.toLocaleString()}`}
-                icon={DollarSign}
-              />
-            ))}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-card border-blue-100 dark:border-blue-900/40">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Rows</CardTitle>
+                <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                  <TableIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{reportData.totalRows.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">{reportData.headers.length} columns detected</p>
+              </CardContent>
+            </Card>
+
+            {analysis.stats.slice(0, 3).map((s, i) => {
+              const gradients = [
+                "from-emerald-50 to-white dark:from-emerald-950/30 dark:to-card border-emerald-100 dark:border-emerald-900/40",
+                "from-amber-50 to-white dark:from-amber-950/30 dark:to-card border-amber-100 dark:border-amber-900/40",
+                "from-purple-50 to-white dark:from-purple-950/30 dark:to-card border-purple-100 dark:border-purple-900/40",
+              ];
+              const iconBgs = [
+                "bg-emerald-100 dark:bg-emerald-900/50",
+                "bg-amber-100 dark:bg-amber-900/50",
+                "bg-purple-100 dark:bg-purple-900/50",
+              ];
+              const iconColors = [
+                "text-emerald-600 dark:text-emerald-400",
+                "text-amber-600 dark:text-amber-400",
+                "text-purple-600 dark:text-purple-400",
+              ];
+              const Icon = STAT_ICONS[(i + 1) % STAT_ICONS.length];
+              return (
+                <Card key={s.header} className={`bg-gradient-to-br ${gradients[i]}`}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground truncate pr-2">{s.header}</CardTitle>
+                    <div className={`h-8 w-8 rounded-lg ${iconBgs[i]} flex items-center justify-center shrink-0`}>
+                      <Icon className={`h-4 w-4 ${iconColors[i]}`} />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{s.sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Avg: {s.avg.toLocaleString(undefined, { maximumFractionDigits: 2 })} &middot; Min: {s.min.toLocaleString()} &middot; Max: {s.max.toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
 
-        {/* Charts */}
-        {analysis && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            {analysis.barChartData.length > 0 && (
-              <Card className="col-span-4">
-                <CardHeader>
-                  <CardTitle>{analysis.barLabel}</CardTitle>
-                  <CardDescription>Grouped totals for the first numeric column by category.</CardDescription>
+        {/* Charts Section */}
+        {analysis && (analysis.barCharts.length > 0 || analysis.pieCharts.length > 0) && (
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+            {/* Bar Charts */}
+            {analysis.barCharts.map((chart, idx) => (
+              <Card key={`bar-${idx}`} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <BarChart3 className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-base truncate">{chart.label}</CardTitle>
+                      <CardDescription className="text-xs">Grouped totals by category</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent className="pl-2">
-                  <div className="h-[300px] w-full">
+                <CardContent className="pt-2 pb-4">
+                  <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analysis.barChartData}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
-                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                      <BarChart data={chart.data} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
+                        <XAxis
+                          dataKey="name"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                          angle={-35}
+                          textAnchor="end"
+                          height={60}
+                          interval={0}
+                        />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} width={50} />
                         <Tooltip
                           contentStyle={{
-                            borderRadius: "8px",
-                            border: "none",
-                            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                            borderRadius: "10px",
+                            border: "1px solid hsl(var(--border))",
+                            boxShadow: "0 8px 24px rgb(0 0 0 / 0.12)",
                             backgroundColor: "hsl(var(--card))",
                             color: "hsl(var(--foreground))",
+                            fontSize: "13px",
                           }}
+                          cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
                         />
-                        <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                          {chart.data.map((_, i) => (
+                            <Cell key={`bar-cell-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
-            )}
+            ))}
 
-            {analysis.pieChartData.length > 0 && (
-              <Card className={analysis.barChartData.length > 0 ? "col-span-3" : "col-span-4"}>
-                <CardHeader>
-                  <CardTitle>Distribution: {analysis.pieLabel}</CardTitle>
-                  <CardDescription>Count of rows per category value.</CardDescription>
+            {/* Pie Charts */}
+            {analysis.pieCharts.map((chart, idx) => (
+              <Card key={`pie-${idx}`} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <PieChartIcon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-base truncate">Distribution: {chart.label}</CardTitle>
+                      <CardDescription className="text-xs">Row count per category</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[300px] w-full">
+                <CardContent className="pt-2 pb-4">
+                  <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={analysis.pieChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                          {analysis.pieChartData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Pie
+                          data={chart.data}
+                          cx="50%"
+                          cy="45%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          dataKey="value"
+                          strokeWidth={2}
+                          stroke="hsl(var(--card))"
+                        >
+                          {chart.data.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip
                           contentStyle={{
-                            borderRadius: "8px",
-                            border: "none",
-                            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                            borderRadius: "10px",
+                            border: "1px solid hsl(var(--border))",
+                            boxShadow: "0 8px 24px rgb(0 0 0 / 0.12)",
                             backgroundColor: "hsl(var(--card))",
                             color: "hsl(var(--foreground))",
+                            fontSize: "13px",
                           }}
                         />
-                        <Legend verticalAlign="bottom" height={36} />
+                        <Legend
+                          verticalAlign="bottom"
+                          iconType="circle"
+                          iconSize={8}
+                          wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
-            )}
+            ))}
           </div>
         )}
 
         {/* Data Preview Table */}
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle>Data Preview</CardTitle>
-            <CardDescription>Showing the first 10 rows from your sheet.</CardDescription>
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <TableIcon className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Data Preview</CardTitle>
+                <CardDescription className="text-xs">First 10 rows from your sheet</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
+                <thead className="text-xs text-muted-foreground uppercase bg-muted/40 border-y border-border">
                   <tr>
                     {reportData.headers.map((h) => (
-                      <th key={h} className="px-4 py-3 font-medium whitespace-nowrap">
-                        {h}
-                      </th>
+                      <th key={h} className="px-4 py-3 font-medium whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {reportData.data.slice(0, 10).map((row, i) => (
-                    <tr key={i} className="hover:bg-muted/50 transition-colors">
+                    <tr key={i} className="hover:bg-muted/30 transition-colors">
                       {reportData.headers.map((h) => (
-                        <td key={h} className="px-4 py-3 whitespace-nowrap">
+                        <td key={h} className="px-4 py-3 whitespace-nowrap max-w-[200px] truncate">
                           {row[h] || <span className="text-muted-foreground italic">-</span>}
                         </td>
                       ))}
@@ -292,9 +372,12 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
-            <div className="mt-4 flex justify-center">
-              <Button variant="ghost" className="text-xs" asChild>
-                <Link href="/report">View Full Report ({reportData.totalRows} rows)</Link>
+            <div className="p-4 flex justify-center border-t border-border">
+              <Button variant="ghost" size="sm" className="text-xs gap-1.5" asChild>
+                <Link href="/report">
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  View Full Report ({reportData.totalRows} rows)
+                </Link>
               </Button>
             </div>
           </CardContent>
