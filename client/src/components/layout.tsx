@@ -21,13 +21,7 @@ export function Layout({ children }: LayoutProps) {
 
   const NavContent = () => (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-2 font-bold text-xl text-primary">
-          <FileSpreadsheet className="w-6 h-6" />
-          <span>SheetSync</span>
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">Live Google Sheets Reports</p>
-      </div>
+      <div className="p-6 border-b border-sidebar-border" />
 
       <nav className="flex-1 p-4 space-y-2">
         <Link href="/dashboard">
@@ -72,11 +66,7 @@ export function Layout({ children }: LayoutProps) {
         <NavContent />
       </aside>
 
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background z-40 px-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-bold text-lg text-primary">
-          <FileSpreadsheet className="w-5 h-5" />
-          <span>SheetSync</span>
-        </div>
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background z-40 px-4 flex items-center justify-end">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
