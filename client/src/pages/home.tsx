@@ -53,6 +53,8 @@ export default function Home() {
               sheetId: serverConfig.sheetId,
               useServerConfig: true,
               sheetName: result.sheetNames?.[0],
+              sheetNames: result.sheetNames,
+              spreadsheetTitle: result.title,
             };
             saveConfig(config);
             toast({
@@ -89,6 +91,8 @@ export default function Home() {
         if (result.sheetNames && result.sheetNames.length > 0 && !config.sheetName) {
           config.sheetName = result.sheetNames[0];
         }
+        config.sheetNames = result.sheetNames;
+        config.spreadsheetTitle = result.title;
         saveConfig(config);
         toast({
           title: "Connected Successfully",

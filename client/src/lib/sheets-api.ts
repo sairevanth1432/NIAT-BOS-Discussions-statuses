@@ -4,6 +4,8 @@ export interface SheetConfig {
   sheetId: string;
   apiKey?: string;
   sheetName?: string;
+  sheetNames?: string[];
+  spreadsheetTitle?: string;
   useServerConfig?: boolean;
 }
 
@@ -70,13 +72,13 @@ export async function validateSheet(config: SheetConfig): Promise<SheetValidatio
   return res.json();
 }
 
-export async function fetchSheetData(config: SheetConfig): Promise<SheetDataResponse> {
+export async function fetchSheetData(config: SheetConfig, tabName?: string): Promise<SheetDataResponse> {
   const body: any = {};
   if (!config.useServerConfig) {
     body.sheetId = config.sheetId;
     body.apiKey = config.apiKey;
   }
-  if (config.sheetName) body.sheetName = config.sheetName;
+  body.sheetName = tabName || config.sheetName;
 
   const res = await fetch("/api/sheets/data", {
     method: "POST",
