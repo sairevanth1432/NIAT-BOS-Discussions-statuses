@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   AlertCircle, RefreshCw, Building2, CheckCircle2, Clock, AlertTriangle,
   FileSpreadsheet, Search, FileDown, XCircle, Loader2, CalendarDays,
-  MessageSquare, ListTodo, ArrowUpDown, Link as LinkIcon
+  MessageSquare, ListTodo, Link as LinkIcon, Info
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -17,8 +17,6 @@ import { useLocation } from "wouter";
 import { useMemo, useState, useEffect } from "react";
 
 const DASHBOARD_TABS = ["Statuses NIAT'24", "Statuses NIAT'25", "Statuses NIAT'26"];
-
-const SHOW_ALL_COLUMNS_TABS = ["Statuses NIAT'24", "Statuses NIAT'25"];
 
 const NIAT26_COLUMNS = [
   "University",
@@ -63,174 +61,17 @@ function isLinkValue(value: string): boolean {
   return /^https?:\/\//.test(value?.trim());
 }
 
-function AllColumnsTabView({ tabName, config }: { tabName: string; config: any }) {
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const { data: reportData, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
-    queryFn: () => fetchSheetData(config, tabName),
-    refetchInterval: 5 * 60 * 1000,
-  });
-
-  const allColumns = useMemo(() => {
-    if (!reportData || !reportData.headers) return [];
-    return reportData.headers;
-  }, [reportData]);
-
-  const rows = useMemo(() => {
-    if (!reportData || reportData.data.length === 0) return [];
-    return reportData.data.filter(r => {
-      const firstCol = allColumns[0];
-      return firstCol ? r[firstCol]?.trim() : true;
-    });
-  }, [reportData, allColumns]);
-
-  const filteredRows = useMemo(() => {
-    if (!searchTerm) return rows;
-    const lower = searchTerm.toLowerCase();
-    return rows.filter((row) =>
-      allColumns.some((col: string) => (row[col] || "").toLowerCase().includes(lower))
-    );
-  }, [rows, searchTerm, allColumns]);
-
-  const handleExportCSV = () => {
-    if (!filteredRows.length || !allColumns.length) return;
-    const csvRows = [allColumns.join(",")];
-    filteredRows.forEach((row: any) => {
-      csvRows.push(allColumns.map((h: string) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
-    });
-    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${tabName.replace(/'/g, "")}_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6 pt-4">
-        <Skeleton className="h-[400px] rounded-xl" />
-      </div>
-    );
-  }
-
-  if (error || !reportData) {
-    return (
-      <div className="pt-4 space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error Loading Data</AlertTitle>
-          <AlertDescription>{(error as Error)?.message || "Failed to fetch data."}</AlertDescription>
-        </Alert>
-        <Button onClick={() => refetch()} variant="outline">Try Again</Button>
-      </div>
-    );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <div className="pt-12 text-center text-muted-foreground">
-        <FileSpreadsheet className="w-14 h-14 mx-auto mb-4 opacity-30" />
-        <p className="text-lg font-semibold">No Data Yet</p>
-        <p className="text-sm mt-1">"{tabName}" doesn't have any records yet.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 pt-2">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Last synced: {format(new Date(reportData.lastUpdated), "MMM d, yyyy 'at' h:mm a")}
-          </p>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {filteredRows.length} of {rows.length} records
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2" data-testid="button-export">
-            <FileDown className="w-3.5 h-3.5" /> Export CSV
-          </Button>
-          <Button size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2" data-testid="button-refresh">
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
-            {isRefetching ? "Syncing..." : "Refresh"}
-          </Button>
-        </div>
-      </div>
-
-      <div className="relative w-full md:w-80">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search across all columns..."
-          className="pl-9 h-9"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          data-testid="input-search"
-        />
-      </div>
-
-      <Card className="shadow-sm">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" data-testid="table-all-columns">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  {allColumns.map((col: string, idx: number) => (
-                    <th key={idx} className="px-4 py-3 text-left font-semibold text-muted-foreground text-xs uppercase tracking-wider whitespace-nowrap">
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((row: any, rowIdx: number) => (
-                  <tr key={row._rowIndex || rowIdx} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors" data-testid={`row-data-${rowIdx}`}>
-                    {allColumns.map((col: string, colIdx: number) => {
-                      const val = row[col] || "";
-                      const isBosStatus = col.toLowerCase().includes("status");
-                      const isLink = isLinkValue(val);
-                      return (
-                        <td key={colIdx} className="px-4 py-3 align-top">
-                          {isBosStatus && val ? (
-                            <div className="space-y-1">
-                              <StatusBadge status={val} />
-                              <p className="text-xs text-muted-foreground leading-relaxed">{val}</p>
-                            </div>
-                          ) : isLink ? (
-                            <a href={val} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-sm">
-                              <LinkIcon className="w-3 h-3" /> View
-                            </a>
-                          ) : (
-                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{val || <span className="text-muted-foreground italic">—</span>}</p>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {filteredRows.length === 0 && (
-        <Card className="shadow-sm">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="font-medium">No matching records</p>
-            <p className="text-sm mt-1">Try adjusting your search.</p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+function getFieldIcon(colName: string) {
+  const lower = colName.toLowerCase();
+  if (lower.includes("meeting") || lower.includes("status")) return MessageSquare;
+  if (lower.includes("action") || lower.includes("delivery")) return ListTodo;
+  if (lower.includes("timeline") || lower.includes("date")) return CalendarDays;
+  if (lower.includes("link") || lower.includes("url")) return LinkIcon;
+  if (lower.includes("city") || lower.includes("type") || lower.includes("university")) return Building2;
+  return Info;
 }
 
-function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any }) {
+function NIATTabDashboard({ tabName, config, showAllColumns }: { tabName: string; config: any; showAllColumns: boolean }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
@@ -241,23 +82,46 @@ function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any 
     refetchInterval: 5 * 60 * 1000,
   });
 
+  const allHeaders = useMemo(() => {
+    if (!reportData || !reportData.headers) return [];
+    return reportData.headers;
+  }, [reportData]);
+
+  const displayColumns = showAllColumns ? allHeaders : NIAT26_COLUMNS;
+
+  const detailColumns = useMemo(() => {
+    return displayColumns.filter(c => c !== "University" && c !== "BOS Status");
+  }, [displayColumns]);
+
+  const statusField = useMemo(() => {
+    if (!showAllColumns) return "BOS Status";
+    const found = allHeaders.find((h: string) => h.toLowerCase().includes("bos status") || h.toLowerCase().includes("status"));
+    return found || "BOS Status";
+  }, [showAllColumns, allHeaders]);
+
+  const universityField = useMemo(() => {
+    if (!showAllColumns) return "University";
+    const found = allHeaders.find((h: string) => h.toLowerCase() === "university");
+    return found || allHeaders[0] || "University";
+  }, [showAllColumns, allHeaders]);
+
   const analysis = useMemo(() => {
     if (!reportData || reportData.data.length === 0) return null;
 
-    const rows = reportData.data.filter(r => r["University"]?.trim());
+    const rows = reportData.data.filter(r => r[universityField]?.trim());
     const total = rows.length;
     const categoryCounts = { approved: 0, in_progress: 0, pending: 0, blocked: 0 };
     const statusCounts: Record<string, number> = {};
 
     rows.forEach((row) => {
-      const key = getStatusKey(row["BOS Status"] || "");
+      const key = getStatusKey(row[statusField] || "");
       statusCounts[key] = (statusCounts[key] || 0) + 1;
       const cfg = STATUS_CONFIG[key] || STATUS_CONFIG["0"];
       categoryCounts[cfg.category as keyof typeof categoryCounts] = (categoryCounts[cfg.category as keyof typeof categoryCounts] || 0) + 1;
     });
 
     return { rows, total, categoryCounts, statusCounts };
-  }, [reportData]);
+  }, [reportData, universityField, statusField]);
 
   const filteredData = useMemo(() => {
     if (!analysis) return [];
@@ -266,15 +130,15 @@ function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any 
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       result = result.filter((row) =>
-        NIAT26_COLUMNS.some((col) => (row[col] || "").toLowerCase().includes(lower))
+        displayColumns.some((col) => (row[col] || "").toLowerCase().includes(lower))
       );
     }
 
     if (statusFilter !== "all") {
       if (["approved", "in_progress", "pending", "blocked"].includes(statusFilter)) {
-        result = result.filter(r => getStatusConfig(r["BOS Status"]).category === statusFilter);
+        result = result.filter(r => getStatusConfig(r[statusField]).category === statusFilter);
       } else {
-        result = result.filter(r => getStatusKey(r["BOS Status"]) === statusFilter);
+        result = result.filter(r => getStatusKey(r[statusField]) === statusFilter);
       }
     }
 
@@ -287,13 +151,14 @@ function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any 
     }
 
     return result;
-  }, [analysis, searchTerm, statusFilter, sortConfig]);
+  }, [analysis, searchTerm, statusFilter, sortConfig, displayColumns, statusField]);
 
   const handleExportCSV = () => {
     if (!filteredData.length) return;
-    const csvRows = [NIAT26_COLUMNS.join(",")];
+    const cols = displayColumns;
+    const csvRows = [cols.join(",")];
     filteredData.forEach((row) => {
-      csvRows.push(NIAT26_COLUMNS.map((h) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
+      csvRows.push(cols.map((h) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
     });
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -489,7 +354,7 @@ function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any 
       {filteredData.length > 0 ? (
         <div className="space-y-4">
           {filteredData.map((row, i) => {
-            const statusCfg = getStatusConfig(row["BOS Status"] || "");
+            const statusCfg = getStatusConfig(row[statusField] || "");
             return (
               <Card key={row._rowIndex || i} className={`shadow-sm hover:shadow-md transition-shadow border-l-4 ${statusCfg.border}`} data-testid={`card-university-${i}`}>
                 <CardContent className="p-5">
@@ -499,51 +364,40 @@ function NIAT26TabDashboard({ tabName, config }: { tabName: string; config: any 
                         <Building2 className={`h-5 w-5 ${statusCfg.color}`} />
                       </div>
                       <h3 className="text-lg font-semibold text-foreground leading-tight">
-                        {row["University"]}
+                        {row[universityField]}
                       </h3>
                     </div>
                     <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
-                      <StatusBadge status={row["BOS Status"] || ""} />
+                      <StatusBadge status={row[statusField] || ""} />
                       <p className="text-xs text-muted-foreground max-w-[300px] sm:text-right leading-snug">
-                        {row["BOS Status"] || "No status"}
+                        {row[statusField] || "No status"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        Last Meeting Status
-                      </div>
-                      <p className="text-sm text-foreground leading-relaxed">
-                        {row["Last meeting Status"] || <span className="text-muted-foreground italic">No updates yet</span>}
-                      </p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <ListTodo className="w-3.5 h-3.5" />
-                        Upcoming Action Items
-                      </div>
-                      <p className="text-sm text-foreground leading-relaxed">
-                        {row["Upcoming Action Items"] || <span className="text-muted-foreground italic">No action items</span>}
-                      </p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <CalendarDays className="w-3.5 h-3.5" />
-                        Timeline to Close
-                      </div>
-                      <p className="text-sm text-foreground leading-relaxed">
-                        {row["Timeline to Close - Action Items"] ? (
-                          <span className="font-medium">{row["Timeline to Close - Action Items"]}</span>
-                        ) : (
-                          <span className="text-muted-foreground italic">Not set</span>
-                        )}
-                      </p>
-                    </div>
+                  <div className={`grid gap-4 ${detailColumns.length <= 3 ? "md:grid-cols-3" : detailColumns.length <= 4 ? "md:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-2 lg:grid-cols-3"}`}>
+                    {detailColumns.map((col, idx) => {
+                      const val = row[col] || "";
+                      const isLink = isLinkValue(val);
+                      const FieldIcon = getFieldIcon(col);
+                      return (
+                        <div key={idx} className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            <FieldIcon className="w-3.5 h-3.5" />
+                            {col}
+                          </div>
+                          {isLink ? (
+                            <a href={val} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:underline">
+                              <LinkIcon className="w-3.5 h-3.5" /> View Link
+                            </a>
+                          ) : (
+                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                              {val || <span className="text-muted-foreground italic">—</span>}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -612,6 +466,8 @@ export default function Dashboard() {
     );
   }
 
+  const isAllColumnsTab = (tab: string) => tab === "Statuses NIAT'24" || tab === "Statuses NIAT'25";
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -641,11 +497,7 @@ export default function Dashboard() {
           </div>
           {tabs.map((tab) => (
             <TabsContent key={tab} value={tab} className="mt-4">
-              {SHOW_ALL_COLUMNS_TABS.includes(tab) ? (
-                <AllColumnsTabView tabName={tab} config={config} />
-              ) : (
-                <NIAT26TabDashboard tabName={tab} config={config} />
-              )}
+              <NIATTabDashboard tabName={tab} config={config} showAllColumns={isAllColumnsTab(tab)} />
             </TabsContent>
           ))}
         </Tabs>
