@@ -97,7 +97,7 @@ function UniversityCard({
   const hasSheetLink = isLinkValue(sheetLink);
 
   const extraColumns = allHeaders.filter(
-    c => c !== universityField && !PRIMARY_FIELDS.includes(c) && c !== statusField && c !== "_rowIndex"
+    c => c !== universityField && c !== "_rowIndex"
   );
 
   return (
