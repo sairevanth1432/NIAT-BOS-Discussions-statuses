@@ -31,10 +31,10 @@ const STATUS_CONFIG: Record<string, {
 }> = {
   "0": { label: "Awaiting Update", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-50 dark:bg-slate-800/50", bgSolid: "bg-slate-100 dark:bg-slate-800", border: "border-slate-200 dark:border-slate-700", dotColor: "bg-slate-400", textOnBg: "text-slate-600 dark:text-slate-300", icon: Clock, category: "pending" },
   "1": { label: "Blocked", color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/30", bgSolid: "bg-red-100 dark:bg-red-900/50", border: "border-red-200 dark:border-red-800", dotColor: "bg-red-500", textOnBg: "text-red-700 dark:text-red-300", icon: XCircle, category: "pending" },
-  "2": { label: "Under Review", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", bgSolid: "bg-blue-100 dark:bg-blue-900/50", border: "border-blue-200 dark:border-blue-800", dotColor: "bg-blue-500", textOnBg: "text-blue-700 dark:text-blue-300", icon: AlertTriangle, category: "review" },
+  "2": { label: "Under Review", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", bgSolid: "bg-blue-100 dark:bg-blue-900/50", border: "border-blue-200 dark:border-blue-800", dotColor: "bg-blue-500", textOnBg: "text-blue-700 dark:text-blue-300", icon: AlertTriangle, category: "under_review" },
   "3": { label: "In Discussion", color: "text-yellow-700 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/30", bgSolid: "bg-yellow-100 dark:bg-yellow-900/50", border: "border-yellow-200 dark:border-yellow-800", dotColor: "bg-yellow-500", textOnBg: "text-yellow-700 dark:text-yellow-300", icon: MessageSquare, category: "in_discussion" },
-  "4": { label: "CSS Approved", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", bgSolid: "bg-blue-100 dark:bg-blue-900/50", border: "border-blue-200 dark:border-blue-800", dotColor: "bg-blue-500", textOnBg: "text-blue-700 dark:text-blue-300", icon: CheckCircle2, category: "review" },
-  "5": { label: "Awaiting BOS", color: "text-orange-700 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-900/30", bgSolid: "bg-orange-100 dark:bg-orange-900/50", border: "border-orange-200 dark:border-orange-800", dotColor: "bg-orange-500", textOnBg: "text-orange-700 dark:text-orange-300", icon: Clock, category: "pending" },
+  "4": { label: "CSS Approved", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", bgSolid: "bg-blue-100 dark:bg-blue-900/50", border: "border-blue-200 dark:border-blue-800", dotColor: "bg-blue-500", textOnBg: "text-blue-700 dark:text-blue-300", icon: CheckCircle2, category: "under_review" },
+  "5": { label: "Awaiting BOS", color: "text-orange-700 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-900/30", bgSolid: "bg-orange-100 dark:bg-orange-900/50", border: "border-orange-200 dark:border-orange-800", dotColor: "bg-orange-500", textOnBg: "text-orange-700 dark:text-orange-300", icon: Clock, category: "under_review" },
   "6": { label: "Approved", color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30", bgSolid: "bg-emerald-100 dark:bg-emerald-900/50", border: "border-emerald-200 dark:border-emerald-800", dotColor: "bg-emerald-500", textOnBg: "text-emerald-700 dark:text-emerald-300", icon: CheckCircle2, category: "approved" },
   "7": { label: "No Intervention", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30", bgSolid: "bg-emerald-100 dark:bg-emerald-900/50", border: "border-emerald-200 dark:border-emerald-800", dotColor: "bg-emerald-400", textOnBg: "text-emerald-600 dark:text-emerald-300", icon: CheckCircle2, category: "approved" },
 };
@@ -48,7 +48,7 @@ const CATEGORY_CONFIG: Record<string, {
   approved: { label: "Approved", gradient: "from-emerald-500 to-emerald-600", icon: CheckCircle2, accent: "ring-emerald-400" },
   in_discussion: { label: "In Discussion", gradient: "from-yellow-500 to-amber-500", icon: MessageSquare, accent: "ring-yellow-400" },
   pending: { label: "Pending", gradient: "from-red-500 to-rose-600", icon: Clock, accent: "ring-red-400" },
-  review: { label: "Framework / Review", gradient: "from-blue-500 to-blue-600", icon: FileSpreadsheet, accent: "ring-blue-400" },
+  under_review: { label: "Under Review", gradient: "from-blue-500 to-blue-600", icon: FileSpreadsheet, accent: "ring-blue-400" },
 };
 
 function getStatusKey(statusStr: string): string {
@@ -221,7 +221,7 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     const rows = reportData.data.filter((r: any) => r[universityField]?.trim());
     const total = rows.length;
     const categoryRows: Record<string, Record<string, string>[]> = {
-      approved: [], in_discussion: [], pending: [], review: [],
+      approved: [], in_discussion: [], pending: [], under_review: [],
     };
     const statusCounts: Record<string, number> = {};
 
@@ -285,7 +285,7 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     );
   }
 
-  const categoryOrder = ["approved", "in_discussion", "pending", "review"];
+  const categoryOrder = ["approved", "in_discussion", "pending", "under_review"];
 
   return (
     <div className="space-y-8">
@@ -311,6 +311,12 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
             {isRefetching ? "Syncing..." : "Refresh"}
           </Button>
         </div>
+      </div>
+
+      {/* Section Heading */}
+      <div>
+        <h2 className="text-xl font-bold text-foreground tracking-tight">NIAT Curriculum Status</h2>
+        <p className="text-sm text-muted-foreground mt-1">Click any card to view university details</p>
       </div>
 
       {/* Summary Cards Grid */}
