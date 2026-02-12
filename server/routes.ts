@@ -5,26 +5,44 @@ import { z } from "zod";
 
 const fetchSheetSchema = z.object({
   sheetId: z.string().min(5),
-  apiKey: z.string().min(10),
+  apiKey: z.string().min(10).optional(),
   sheetName: z.string().optional(),
 });
+
+function getApiKey(bodyKey?: string): string {
+  return bodyKey || process.env.GOOGLE_SHEETS_API_KEY || "";
+}
+
+function getSheetId(bodyId?: string): string {
+  return bodyId || process.env.GOOGLE_SHEET_ID || "";
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
+  app.get("/api/sheets/config", (_req, res) => {
+    const hasApiKey = !!process.env.GOOGLE_SHEETS_API_KEY;
+    const sheetId = process.env.GOOGLE_SHEET_ID || "";
+    return res.json({
+      hasServerConfig: hasApiKey && !!sheetId,
+      sheetId: sheetId,
+    });
+  });
+
   app.post("/api/sheets/validate", async (req, res) => {
     try {
-      const parsed = fetchSheetSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({
-          valid: false,
-          error: "Please provide a valid Sheet ID (at least 5 characters) and API Key (at least 10 characters).",
-        });
+      const sheetId = getSheetId(req.body?.sheetId);
+      const apiKey = getApiKey(req.body?.apiKey);
+
+      if (!sheetId || sheetId.length < 5) {
+        return res.status(400).json({ valid: false, error: "No Sheet ID configured." });
+      }
+      if (!apiKey || apiKey.length < 10) {
+        return res.status(400).json({ valid: false, error: "No API Key configured." });
       }
 
-      const { sheetId, apiKey } = parsed.data;
       const sheets = google.sheets({ version: "v4", auth: apiKey });
 
       const spreadsheet = await sheets.spreadsheets.get({
@@ -73,16 +91,8 @@ export async function registerRoutes(
       if (httpStatus === 404) {
         return res.status(404).json({
           valid: false,
-          error: "Spreadsheet not found. Make sure the Sheet ID is correct (it's the long string in the URL between '/d/' and '/edit').",
+          error: "Spreadsheet not found. Make sure the Sheet ID is correct.",
           errorType: "NOT_FOUND",
-        });
-      }
-
-      if (httpStatus === 400) {
-        return res.status(400).json({
-          valid: false,
-          error: "Invalid request. The Sheet ID format appears incorrect. Copy it from your spreadsheet URL.",
-          errorType: "BAD_REQUEST",
         });
       }
 
@@ -96,14 +106,15 @@ export async function registerRoutes(
 
   app.post("/api/sheets/data", async (req, res) => {
     try {
-      const parsed = fetchSheetSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid request parameters." });
+      const sheetId = getSheetId(req.body?.sheetId);
+      const apiKey = getApiKey(req.body?.apiKey);
+      const sheetName = req.body?.sheetName;
+
+      if (!sheetId || !apiKey) {
+        return res.status(400).json({ error: "Missing Sheet ID or API Key configuration." });
       }
 
-      const { sheetId, apiKey, sheetName } = parsed.data;
       const sheets = google.sheets({ version: "v4", auth: apiKey });
-
       const range = sheetName || "Sheet1";
 
       const response = await sheets.spreadsheets.values.get({
@@ -153,7 +164,7 @@ export async function registerRoutes(
 
       if (httpStatus === 400 && errorMessage.includes("Unable to parse range")) {
         return res.status(400).json({
-          error: `Sheet tab "${req.body.sheetName}" was not found. Check the exact tab name in your spreadsheet (it's case-sensitive).`,
+          error: `Sheet tab "${req.body?.sheetName}" was not found. Check the exact tab name (it's case-sensitive).`,
         });
       }
 

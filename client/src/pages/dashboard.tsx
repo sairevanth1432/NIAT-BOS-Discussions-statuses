@@ -57,7 +57,7 @@ export default function Dashboard() {
   }
 
   const { data: reportData, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ["sheetData", config.sheetId, config.sheetName],
+    queryKey: ["sheetData", config.sheetId, config.sheetName, config.useServerConfig],
     queryFn: () => fetchSheetData(config),
     refetchInterval: 5 * 60 * 1000,
   });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, CheckCircle2, FileSpreadsheet, KeyRound, Hash, Info, ExternalLink, Copy } from "lucide-react";
-import { validateSheet, saveConfig, type SheetConfig } from "@/lib/sheets-api";
+import { Loader2, AlertCircle, CheckCircle2, FileSpreadsheet, KeyRound, Hash, Info, ExternalLink } from "lucide-react";
+import { validateSheet, saveConfig, getServerConfig, type SheetConfig } from "@/lib/sheets-api";
 import { useToast } from "@/hooks/use-toast";
 import heroBg from "@/assets/hero-bg.png";
 import {
@@ -29,6 +29,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutoConnecting, setIsAutoConnecting] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [errorType, setErrorType] = useState<string | null>(null);
 
@@ -40,6 +41,35 @@ export default function Home() {
       sheetName: "",
     },
   });
+
+  useEffect(() => {
+    async function autoConnect() {
+      try {
+        const serverConfig = await getServerConfig();
+        if (serverConfig.hasServerConfig) {
+          const result = await validateSheet({ sheetId: serverConfig.sheetId, useServerConfig: true });
+          if (result.valid) {
+            const config: SheetConfig = {
+              sheetId: serverConfig.sheetId,
+              useServerConfig: true,
+              sheetName: result.sheetNames?.[0],
+            };
+            saveConfig(config);
+            toast({
+              title: "Connected",
+              description: `Loading "${result.title}"...`,
+            });
+            setLocation("/dashboard");
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Auto-connect failed:", e);
+      }
+      setIsAutoConnecting(false);
+    }
+    autoConnect();
+  }, []);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -60,22 +90,31 @@ export default function Home() {
           config.sheetName = result.sheetNames[0];
         }
         saveConfig(config);
-
         toast({
           title: "Connected Successfully",
           description: `Linked to "${result.title}". Loading your data...`,
         });
-
         setTimeout(() => setLocation("/dashboard"), 800);
       } else {
         setValidationError(result.error || "Could not connect to the spreadsheet.");
-        setErrorType((result as any).errorType || null);
+        setErrorType(result.errorType || null);
       }
     } catch (error: any) {
       setValidationError("Network error. Please check your internet connection and try again.");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (isAutoConnecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Connecting to your spreadsheet...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -106,7 +145,6 @@ export default function Home() {
             Connect your Google Sheets to generate live dashboards, summary statistics, and sortable reports automatically.
           </p>
 
-          {/* Setup Guide Accordion */}
           <div className="pt-6 border-t border-white/10">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Setup Guide</h3>
             <Accordion type="single" collapsible className="space-y-2">
@@ -124,7 +162,6 @@ export default function Home() {
                   </ol>
                 </AccordionContent>
               </AccordionItem>
-
               <AccordionItem value="step2" className="border border-white/10 rounded-lg px-4 bg-white/5">
                 <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
                   Step 2: Enable Google Sheets API
@@ -138,7 +175,6 @@ export default function Home() {
                   <p className="text-amber-300 text-xs mt-2">This is the most commonly missed step!</p>
                 </AccordionContent>
               </AccordionItem>
-
               <AccordionItem value="step3" className="border border-white/10 rounded-lg px-4 bg-white/5">
                 <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
                   Step 3: Share Your Spreadsheet
@@ -153,7 +189,6 @@ export default function Home() {
                   </ol>
                 </AccordionContent>
               </AccordionItem>
-
               <AccordionItem value="step4" className="border border-white/10 rounded-lg px-4 bg-white/5">
                 <AccordionTrigger className="text-sm text-slate-200 hover:no-underline">
                   Step 4: Find Your Sheet ID
@@ -191,12 +226,7 @@ export default function Home() {
                 <AlertTitle>Connection Failed</AlertTitle>
                 <AlertDescription className="text-sm mt-1">{validationError}</AlertDescription>
                 {errorType === "API_NOT_ENABLED" && (
-                  <a
-                    href="https://console.cloud.google.com/apis/library/sheets.googleapis.com"
-                    target="_blank"
-                    rel="noopener"
-                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium underline"
-                  >
+                  <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 text-sm font-medium underline">
                     Enable Google Sheets API <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
@@ -217,14 +247,11 @@ export default function Home() {
                       <FormControl>
                         <Input type="password" placeholder="AIzaSy..." {...field} className="font-mono text-sm" data-testid="input-api-key" />
                       </FormControl>
-                      <FormDescription className="text-xs">
-                        From Google Cloud Console &gt; Credentials
-                      </FormDescription>
+                      <FormDescription className="text-xs">From Google Cloud Console &gt; Credentials</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="sheetId"
@@ -237,14 +264,11 @@ export default function Home() {
                       <FormControl>
                         <Input placeholder="1BxiMVs0XRA5nFMd..." {...field} className="font-mono text-sm" data-testid="input-sheet-id" />
                       </FormControl>
-                      <FormDescription className="text-xs">
-                        The long string from your spreadsheet URL
-                      </FormDescription>
+                      <FormDescription className="text-xs">The long string from your spreadsheet URL</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="sheetName"
@@ -257,20 +281,12 @@ export default function Home() {
                       <FormControl>
                         <Input placeholder="Sheet1" {...field} className="text-sm" data-testid="input-sheet-name" />
                       </FormControl>
-                      <FormDescription className="text-xs">
-                        Leave empty to use the first tab
-                      </FormDescription>
+                      <FormDescription className="text-xs">Leave empty to use the first tab</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 transition-all shadow-md hover:shadow-lg"
-                  disabled={isLoading}
-                  data-testid="button-connect"
-                >
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 transition-all shadow-md hover:shadow-lg" disabled={isLoading} data-testid="button-connect">
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -285,12 +301,8 @@ export default function Home() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 text-center text-sm text-muted-foreground">
             <div className="relative w-full">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Security</span>
-              </div>
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Security</span></div>
             </div>
             <div className="flex items-center justify-center gap-2 text-xs">
               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
