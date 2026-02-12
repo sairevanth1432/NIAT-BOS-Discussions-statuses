@@ -62,17 +62,7 @@ export function Layout({ children }: LayoutProps) {
         </Link>
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border">
-        <Button
-          variant="outline"
-          className="w-full gap-2 text-destructive hover:text-destructive"
-          onClick={handleDisconnect}
-          data-testid="button-disconnect"
-        >
-          <LogOut className="w-4 h-4" />
-          Disconnect Sheet
-        </Button>
-      </div>
+      <div className="p-4 border-t border-sidebar-border" />
     </div>
   );
 
