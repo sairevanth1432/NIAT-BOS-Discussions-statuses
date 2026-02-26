@@ -22,6 +22,13 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  app.get("/api/auth/config", (_req, res) => {
+    return res.json({
+      clientId: process.env.MICROSOFT_CLIENT_ID || "",
+      tenantId: process.env.MICROSOFT_TENANT_ID || "",
+    });
+  });
+
   app.get("/api/sheets/config", (_req, res) => {
     const hasApiKey = !!process.env.GOOGLE_SHEETS_API_KEY;
     const sheetId = process.env.GOOGLE_SHEET_ID || "";

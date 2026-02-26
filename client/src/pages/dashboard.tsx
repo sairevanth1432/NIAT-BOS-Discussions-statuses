@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { useMemo, useState, useEffect, useRef } from "react";
+import { LogoutButton } from "@/components/LogoutButton";
 
 const DASHBOARD_TABS = ["Statuses NIAT'24", "Statuses NIAT'25", "Statuses NIAT'26"];
 
@@ -639,22 +640,31 @@ export default function Dashboard() {
       <div className="space-y-8">
         {/* Dashboard Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground" data-testid="text-report-title">
-              {title}
-            </h1>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground" data-testid="text-report-title">
+                {title}
+              </h1>
+              <div className="md:hidden">
+                <LogoutButton />
+              </div>
+            </div>
             <p className="text-sm text-muted-foreground mt-1">
               BOS status tracking across NIAT cohorts
             </p>
           </div>
 
-          {/* Year Selector - 2026 prominent, others in dropdown */}
-          <YearSelector
-            tabs={tabs}
-            activeTab={activeTab}
-            onSelect={setActiveTab}
-            yearFromTab={yearFromTab}
-          />
+          <div className="flex items-end gap-4">
+            <YearSelector
+              tabs={tabs}
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              yearFromTab={yearFromTab}
+            />
+            <div className="hidden md:block">
+              <LogoutButton />
+            </div>
+          </div>
         </div>
 
         {/* Active Tab Content */}
