@@ -555,7 +555,7 @@ function YearSelector({
             }`}
             data-testid="dropdown-older-years"
           >
-            {!isLatestActive ? yearFromTab(activeTab) : "Previous Years"}
+            {!isLatestActive ? yearFromTab(activeTab) : "Previous Batches"}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
@@ -631,8 +631,13 @@ export default function Dashboard() {
   }
 
   const yearFromTab = (tab: string) => {
+    const batchMap: Record<string, string> = {
+      "24": "Batch 2",
+      "25": "Batch 3",
+      "26": "Batch 4",
+    };
     const match = tab.match(/'(\d{2})$/);
-    return match ? `20${match[1]}` : tab;
+    return match ? (batchMap[match[1]] || `20${match[1]}`) : tab;
   };
 
   return (
