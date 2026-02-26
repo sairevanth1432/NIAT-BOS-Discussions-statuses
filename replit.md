@@ -11,6 +11,7 @@ The app follows a full-stack TypeScript architecture with a React frontend and E
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
+- 2026-02-26: Added Microsoft SSO authentication using @azure/msal-browser and @azure/msal-react
 - 2026-02-11: Converted from design prototype to full-stack app with real Google Sheets API integration
 - 2026-02-11: Backend API routes created for sheet validation and data fetching
 - 2026-02-11: Frontend updated to use real API calls instead of mock data
@@ -55,8 +56,19 @@ Preferred communication style: Simple, everyday language.
 
 ### Services & APIs
 - **Google Sheets API v4**: Core data source - requires user-provided API key and publicly shared spreadsheet
+- **Microsoft Azure AD**: SSO authentication via MSAL - requires MICROSOFT_CLIENT_ID and MICROSOFT_TENANT_ID
+
+### Authentication
+- **Microsoft SSO**: Login/logout via @azure/msal-browser and @azure/msal-react
+- Auth config fetched from server endpoint `GET /api/auth/config` (exposes clientId and tenantId)
+- `client/src/lib/authConfig.ts`: MSAL configuration, fetches from server
+- `client/src/lib/authContext.ts`: React context to track if auth is enabled
+- `client/src/components/LoginPage.tsx`: Centered login page with Microsoft sign-in button
+- `client/src/components/LogoutButton.tsx`: Shows user name + logout button in dashboard header
+- When MICROSOFT_CLIENT_ID is not set, auth is bypassed and the app loads directly
 
 ### Key npm Packages
+- **@azure/msal-browser** + **@azure/msal-react**: Microsoft SSO authentication
 - **googleapis**: Official Google API client for accessing Sheets data server-side
 - **express** (v5): HTTP server framework
 - **@tanstack/react-query**: Async state management with auto-refetch
@@ -67,3 +79,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Environment Variables
 - `NODE_ENV` - Set to "production" for production builds
+- `MICROSOFT_CLIENT_ID` - Azure AD Application (client) ID for SSO
+- `MICROSOFT_TENANT_ID` - Azure AD Tenant ID for SSO
+- `GOOGLE_SHEETS_API_KEY` - Google API key for Sheets access
+- `GOOGLE_SHEET_ID` - Default Google Sheet ID
