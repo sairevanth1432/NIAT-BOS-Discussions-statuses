@@ -108,11 +108,15 @@ function UniversityCard({
   allHeaders: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const { key: statusKey } = getRowStatus(row, statusFields);
   const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG["0"];
 
   const sheetLink = row["Sheet Link"] || "";
   const hasSheetLink = isLinkValue(sheetLink);
+  const logoUrl = row["Logo URL"] || "";
+  const showLogo = logoUrl.trim() !== "" && !logoError;
+  const uniInitial = (row[universityField] || "U").charAt(0).toUpperCase();
 
   const extraColumns = allHeaders.filter(
     c => c !== universityField && c !== "_rowIndex"
@@ -127,9 +131,20 @@ function UniversityCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5">
-            <div className={`h-9 w-9 rounded-lg ${cfg.bg} flex items-center justify-center shrink-0`}>
-              <Building2 className={`h-4 w-4 ${cfg.color}`} />
-            </div>
+            {showLogo ? (
+              <img
+                src={logoUrl}
+                alt={row[universityField]}
+                className="h-10 w-10 rounded-full object-contain shrink-0 bg-white border border-border"
+                onError={() => setLogoError(true)}
+                referrerPolicy="no-referrer"
+                data-testid={`logo-img-${index}`}
+              />
+            ) : (
+              <div className={`h-10 w-10 rounded-full ${cfg.bg} flex items-center justify-center shrink-0 border ${cfg.border}`}>
+                <span className={`text-sm font-bold ${cfg.color}`}>{uniInitial}</span>
+              </div>
+            )}
             <div>
               <h4 className="font-semibold text-foreground">{row[universityField]}</h4>
               {row["Code"] && (
