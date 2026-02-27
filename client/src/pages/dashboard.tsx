@@ -119,7 +119,7 @@ function UniversityCard({
   const uniInitial = (row[universityField] || "U").charAt(0).toUpperCase();
 
   const extraColumns = allHeaders.filter(
-    c => c !== universityField && c !== "_rowIndex"
+    c => c !== universityField && c !== "_rowIndex" && c !== "Logo URL"
   );
 
   return (

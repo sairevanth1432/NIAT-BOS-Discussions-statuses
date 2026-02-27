@@ -10,7 +10,12 @@ function LogoutButtonInner() {
   if (!isAuthenticated || !account) return null;
 
   const handleLogout = () => {
-    instance.logoutRedirect();
+    const isIframe = window !== window.parent;
+    if (isIframe) {
+      instance.logoutPopup();
+    } else {
+      instance.logoutRedirect();
+    }
   };
 
   return (

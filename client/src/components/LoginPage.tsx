@@ -5,7 +5,12 @@ export function LoginPage() {
   const { instance } = useMsal();
 
   const handleLogin = () => {
-    instance.loginRedirect(loginRequest);
+    const isIframe = window !== window.parent;
+    if (isIframe) {
+      instance.loginPopup(loginRequest);
+    } else {
+      instance.loginRedirect(loginRequest);
+    }
   };
 
   return (
