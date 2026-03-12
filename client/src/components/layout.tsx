@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { clearConfig } from "@/lib/sheets-api";
+import { LogoutButton } from "@/components/LogoutButton";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -56,7 +57,9 @@ export function Layout({ children }: LayoutProps) {
         </Link>
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border" />
+      <div className="p-4 border-t border-sidebar-border">
+        <LogoutButton />
+      </div>
     </div>
   );
 
