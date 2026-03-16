@@ -4,12 +4,11 @@ import { fetchSheetData, loadConfig, validateSheet, saveConfig } from "@/lib/she
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertCircle, RefreshCw, Building2, CheckCircle2, Clock, AlertTriangle,
   FileSpreadsheet, Search, FileDown, XCircle, Loader2, CalendarDays,
-  MessageSquare, ListTodo, Link as LinkIcon, Info, X, ChevronRight, ChevronDown
+  MessageSquare, ListTodo, Link as LinkIcon, Info, ChevronRight, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -21,6 +20,7 @@ const DASHBOARD_TABS = ["Statuses NIAT'24", "Statuses NIAT'25", "Statuses NIAT'2
 
 const STATUS_CONFIG: Record<string, {
   label: string;
+  shortLabel: string;
   color: string;
   bg: string;
   bgSolid: string;
@@ -28,32 +28,120 @@ const STATUS_CONFIG: Record<string, {
   dotColor: string;
   textOnBg: string;
   icon: any;
-  category: string;
-}> = {
-  "0": { label: "Awaiting Update", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-50 dark:bg-slate-800/50", bgSolid: "bg-slate-100 dark:bg-slate-800", border: "border-slate-200 dark:border-slate-700", dotColor: "bg-slate-400", textOnBg: "text-slate-600 dark:text-slate-300", icon: Clock, category: "pending" },
-  "1": { label: "Blocked", color: "text-red-700 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/30", bgSolid: "bg-red-100 dark:bg-red-900/50", border: "border-red-200 dark:border-red-800", dotColor: "bg-red-500", textOnBg: "text-red-700 dark:text-red-300", icon: XCircle, category: "pending" },
-  "2": { label: "Under Review", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", bgSolid: "bg-blue-100 dark:bg-blue-900/50", border: "border-blue-200 dark:border-blue-800", dotColor: "bg-blue-500", textOnBg: "text-blue-700 dark:text-blue-300", icon: AlertTriangle, category: "under_review" },
-  "3": { label: "In Discussion", color: "text-yellow-700 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/30", bgSolid: "bg-yellow-100 dark:bg-yellow-900/50", border: "border-yellow-200 dark:border-yellow-800", dotColor: "bg-yellow-500", textOnBg: "text-yellow-700 dark:text-yellow-300", icon: MessageSquare, category: "in_discussion" },
-  "4": { label: "CSS Approved", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30", bgSolid: "bg-blue-100 dark:bg-blue-900/50", border: "border-blue-200 dark:border-blue-800", dotColor: "bg-blue-500", textOnBg: "text-blue-700 dark:text-blue-300", icon: CheckCircle2, category: "under_review" },
-  "5": { label: "Awaiting BOS", color: "text-orange-700 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-900/30", bgSolid: "bg-orange-100 dark:bg-orange-900/50", border: "border-orange-200 dark:border-orange-800", dotColor: "bg-orange-500", textOnBg: "text-orange-700 dark:text-orange-300", icon: Clock, category: "under_review" },
-  "6": { label: "Approved", color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30", bgSolid: "bg-emerald-100 dark:bg-emerald-900/50", border: "border-emerald-200 dark:border-emerald-800", dotColor: "bg-emerald-500", textOnBg: "text-emerald-700 dark:text-emerald-300", icon: CheckCircle2, category: "approved" },
-  "7": { label: "No Intervention", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30", bgSolid: "bg-emerald-100 dark:bg-emerald-900/50", border: "border-emerald-200 dark:border-emerald-800", dotColor: "bg-emerald-400", textOnBg: "text-emerald-600 dark:text-emerald-300", icon: CheckCircle2, category: "approved" },
-};
-
-const CATEGORY_CONFIG: Record<string, {
-  label: string;
   gradient: string;
-  icon: any;
-  accent: string;
 }> = {
-  approved: { label: "Approved", gradient: "from-emerald-500 to-emerald-600", icon: CheckCircle2, accent: "ring-emerald-400" },
-  in_discussion: { label: "In Discussion", gradient: "from-yellow-500 to-amber-500", icon: MessageSquare, accent: "ring-yellow-400" },
-  pending: { label: "Pending", gradient: "from-red-500 to-rose-600", icon: Clock, accent: "ring-red-400" },
-  under_review: { label: "Under Review", gradient: "from-blue-500 to-blue-600", icon: FileSpreadsheet, accent: "ring-blue-400" },
+  "0": {
+    label: "Awaiting Partnership team Update",
+    shortLabel: "Awaiting Update",
+    color: "text-red-700 dark:text-red-400",
+    bg: "bg-red-50 dark:bg-red-900/30",
+    bgSolid: "bg-red-100 dark:bg-red-900/50",
+    border: "border-red-200 dark:border-red-800",
+    dotColor: "bg-red-400",
+    textOnBg: "text-red-700 dark:text-red-300",
+    icon: Clock,
+    gradient: "from-red-400 to-red-500",
+  },
+  "1": {
+    label: "Blocked - Leadership / Regulatory Discussion",
+    shortLabel: "Blocked",
+    color: "text-red-700 dark:text-red-400",
+    bg: "bg-red-50 dark:bg-red-900/30",
+    bgSolid: "bg-red-100 dark:bg-red-900/50",
+    border: "border-red-200 dark:border-red-800",
+    dotColor: "bg-red-600",
+    textOnBg: "text-red-700 dark:text-red-300",
+    icon: XCircle,
+    gradient: "from-red-600 to-rose-700",
+  },
+  "2": {
+    label: "Under Review - Structure & Syllabi - Nxtwave Associate Dean Approval Pending",
+    shortLabel: "Under Review – Structure & Syllabi",
+    color: "text-orange-700 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-900/30",
+    bgSolid: "bg-orange-100 dark:bg-orange-900/50",
+    border: "border-orange-200 dark:border-orange-800",
+    dotColor: "bg-orange-500",
+    textOnBg: "text-orange-700 dark:text-orange-300",
+    icon: AlertTriangle,
+    gradient: "from-orange-500 to-orange-600",
+  },
+  "3": {
+    label: "Waiting for University POC Time - Structure & Syllabi",
+    shortLabel: "Waiting for University POC",
+    color: "text-orange-700 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-900/30",
+    bgSolid: "bg-orange-100 dark:bg-orange-900/50",
+    border: "border-orange-200 dark:border-orange-800",
+    dotColor: "bg-orange-600",
+    textOnBg: "text-orange-700 dark:text-orange-300",
+    icon: Clock,
+    gradient: "from-orange-600 to-amber-600",
+  },
+  "4": {
+    label: "Under Review - CSS File Generation - Nxtwave Associate Dean Approval Pending",
+    shortLabel: "Under Review – CSS File",
+    color: "text-yellow-700 dark:text-yellow-400",
+    bg: "bg-yellow-50 dark:bg-yellow-900/30",
+    bgSolid: "bg-yellow-100 dark:bg-yellow-900/50",
+    border: "border-yellow-200 dark:border-yellow-800",
+    dotColor: "bg-yellow-500",
+    textOnBg: "text-yellow-700 dark:text-yellow-300",
+    icon: FileSpreadsheet,
+    gradient: "from-yellow-500 to-amber-500",
+  },
+  "5": {
+    label: "CSS File Approved Internally",
+    shortLabel: "CSS File Approved",
+    color: "text-yellow-700 dark:text-yellow-400",
+    bg: "bg-yellow-50 dark:bg-yellow-900/30",
+    bgSolid: "bg-yellow-100 dark:bg-yellow-900/50",
+    border: "border-yellow-200 dark:border-yellow-800",
+    dotColor: "bg-yellow-600",
+    textOnBg: "text-yellow-700 dark:text-yellow-300",
+    icon: CheckCircle2,
+    gradient: "from-amber-500 to-yellow-600",
+  },
+  "6": {
+    label: "Waiting for University BOS Approval",
+    shortLabel: "Waiting for BOS Approval",
+    color: "text-blue-700 dark:text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-900/30",
+    bgSolid: "bg-blue-100 dark:bg-blue-900/50",
+    border: "border-blue-200 dark:border-blue-800",
+    dotColor: "bg-blue-500",
+    textOnBg: "text-blue-700 dark:text-blue-300",
+    icon: Clock,
+    gradient: "from-blue-500 to-blue-600",
+  },
+  "7": {
+    label: "BOS Approved – Ready for Implementation",
+    shortLabel: "BOS Approved",
+    color: "text-emerald-700 dark:text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-900/30",
+    bgSolid: "bg-emerald-100 dark:bg-emerald-900/50",
+    border: "border-emerald-200 dark:border-emerald-800",
+    dotColor: "bg-emerald-500",
+    textOnBg: "text-emerald-700 dark:text-emerald-300",
+    icon: CheckCircle2,
+    gradient: "from-emerald-500 to-emerald-600",
+  },
+  "8": {
+    label: "No Intervention Required",
+    shortLabel: "No Intervention Required",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-900/30",
+    bgSolid: "bg-emerald-100 dark:bg-emerald-900/50",
+    border: "border-emerald-200 dark:border-emerald-800",
+    dotColor: "bg-emerald-400",
+    textOnBg: "text-emerald-600 dark:text-emerald-300",
+    icon: CheckCircle2,
+    gradient: "from-emerald-400 to-teal-500",
+  },
 };
 
 function getStatusKey(statusStr: string): string {
-  const match = statusStr?.match(/^(\d+)\./);
+  const match = statusStr?.match(/^(\d+)[.\s]/);
   return match ? match[1] : "0";
 }
 
@@ -76,13 +164,11 @@ function getFieldIcon(colName: string) {
   return Info;
 }
 
-const PRIMARY_FIELDS = ["Code", "Last meeting Status", "Upcoming Action Items", "Sheet Link"];
-
 function getRowStatus(row: Record<string, string>, statusFields: string[]): { key: string; label: string } {
   if (statusFields.length === 1) {
     return { key: getStatusKey(row[statusFields[0]] || ""), label: row[statusFields[0]] || "" };
   }
-  let worstKey = "7";
+  let worstKey = "8";
   let worstVal = "";
   for (const field of statusFields) {
     const key = getStatusKey(row[field] || "");
@@ -154,7 +240,7 @@ function UniversityCard({
           </div>
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.color} ${cfg.bg} border ${cfg.border} shrink-0`}>
             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
-            {cfg.label}
+            {cfg.shortLabel}
           </span>
         </div>
 
@@ -239,7 +325,7 @@ function UniversityCard({
 function DetailModal({
   open,
   onClose,
-  categoryKey,
+  statusKey,
   rows,
   allHeaders,
   statusFields,
@@ -247,14 +333,14 @@ function DetailModal({
 }: {
   open: boolean;
   onClose: () => void;
-  categoryKey: string;
+  statusKey: string;
   rows: Record<string, string>[];
   allHeaders: string[];
   statusFields: string[];
   universityField: string;
 }) {
   const [detailSearch, setDetailSearch] = useState("");
-  const catCfg = CATEGORY_CONFIG[categoryKey];
+  const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG["0"];
 
   const filtered = useMemo(() => {
     if (!detailSearch) return rows;
@@ -267,11 +353,11 @@ function DetailModal({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <div className={`bg-gradient-to-r ${catCfg?.gradient || "from-slate-500 to-slate-600"} px-6 py-5`}>
+        <div className={`bg-gradient-to-r ${cfg.gradient} px-6 py-5`}>
           <DialogHeader>
             <DialogTitle className="text-white text-xl font-bold flex items-center gap-2">
-              {catCfg && <catCfg.icon className="w-5 h-5" />}
-              {catCfg?.label || categoryKey} — {rows.length} {rows.length === 1 ? "University" : "Universities"}
+              <cfg.icon className="w-5 h-5 shrink-0" />
+              <span className="leading-tight">{cfg.label} — {rows.length} {rows.length === 1 ? "University" : "Universities"}</span>
             </DialogTitle>
           </DialogHeader>
           <div className="relative mt-3">
@@ -311,7 +397,7 @@ function DetailModal({
 }
 
 function StatusDashboard({ tabName, config }: { tabName: string; config: any }) {
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedStatus, setExpandedStatus] = useState<string | null>(null);
 
   const { data: reportData, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
@@ -327,27 +413,27 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
   }, [reportData]);
 
   const statusFields = useMemo(() => {
-    const hasBosStatus = allHeaders.find((h: string) => h.toLowerCase() === "bos status");
-    if (hasBosStatus) return [hasBosStatus];
+    // Prefer "Semester 1 BOS Status" column
+    const semBosStatus = allHeaders.find((h: string) =>
+      h.toLowerCase().includes("semester 1 bos status") ||
+      h.toLowerCase().includes("semester1 bos status")
+    );
+    if (semBosStatus) return [semBosStatus];
 
+    // Broader match: any col with semester + bos + status
     const semesterBosStatusCols = allHeaders.filter((h: string) => {
       const lower = h.toLowerCase();
       return lower.includes("semester") && lower.includes("bos") && lower.includes("status");
     });
     if (semesterBosStatusCols.length > 0) return semesterBosStatusCols;
 
-    const semesterAlignmentCols = allHeaders.filter((h: string) => {
-      const lower = h.toLowerCase();
-      return lower.includes("sem") && lower.includes("alignment");
-    });
-    const alignmentHasStatusValues = semesterAlignmentCols.length > 0 &&
-      reportData?.data?.some((r: any) =>
-        semesterAlignmentCols.some(col => /^\d+\./.test(r[col] || ""))
-      );
-    if (alignmentHasStatusValues) return semesterAlignmentCols;
+    // Plain "BOS Status"
+    const bosStatus = allHeaders.find((h: string) => h.toLowerCase() === "bos status");
+    if (bosStatus) return [bosStatus];
 
+    // Fallback to any status column
     const fallback = allHeaders.find((h: string) => h.toLowerCase().includes("status"));
-    return fallback ? [fallback] : ["BOS Status"];
+    return fallback ? [fallback] : ["Semester 1 BOS Status"];
   }, [allHeaders, reportData]);
 
   const universityField = useMemo(() => {
@@ -360,21 +446,15 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
 
     const rows = reportData.data.filter((r: any) => r[universityField]?.trim());
     const total = rows.length;
-    const categoryRows: Record<string, Record<string, string>[]> = {
-      approved: [], in_discussion: [], pending: [], under_review: [],
-    };
-    const statusCounts: Record<string, number> = {};
+    const statusRows: Record<string, Record<string, string>[]> = {};
 
     rows.forEach((row: any) => {
       const key = getRowStatus(row, statusFields).key;
-      statusCounts[key] = (statusCounts[key] || 0) + 1;
-      const cfg = STATUS_CONFIG[key] || STATUS_CONFIG["0"];
-      if (categoryRows[cfg.category]) {
-        categoryRows[cfg.category].push(row);
-      }
+      if (!statusRows[key]) statusRows[key] = [];
+      statusRows[key].push(row);
     });
 
-    return { rows, total, categoryRows, statusCounts };
+    return { rows, total, statusRows };
   }, [reportData, universityField, statusFields]);
 
   const handleExportCSV = () => {
@@ -395,8 +475,8 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
   if (isLoading) {
     return (
       <div className="space-y-8 pt-4">
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[140px] rounded-2xl" />)}
+        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-[160px] rounded-2xl" />)}
         </div>
       </div>
     );
@@ -425,21 +505,22 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
     );
   }
 
-  const categoryOrder = ["approved", "in_discussion", "pending", "under_review"];
+  // Only show statuses that have at least 1 university, in order 0→8
+  const activeStatuses = (["0","1","2","3","4","5","6","7","8"] as const).filter(
+    key => (analysis.statusRows[key]?.length || 0) > 0
+  );
 
   return (
     <div className="space-y-8">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-              <Building2 className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-foreground">{analysis.total}</p>
-              <p className="text-sm text-muted-foreground">Total Universities</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+            <Building2 className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-foreground">{analysis.total}</p>
+            <p className="text-sm text-muted-foreground">Total Universities</p>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -455,40 +536,39 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
 
       {/* Section Heading */}
       <div>
-        <h2 className="text-xl font-bold text-foreground tracking-tight">NIAT Curriculum Status</h2>
+        <h2 className="text-xl font-bold text-foreground tracking-tight">NIAT BOS Approval Status</h2>
         <p className="text-sm text-muted-foreground mt-1">Click any card to view university details</p>
       </div>
 
-      {/* Summary Cards Grid */}
-      <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {categoryOrder.map((catKey) => {
-          const catCfg = CATEGORY_CONFIG[catKey];
-          const count = analysis.categoryRows[catKey]?.length || 0;
-          const Icon = catCfg.icon;
-          const statement = `${count} ${count === 1 ? "University" : "Universities"} ${catCfg.label}`;
+      {/* Pipeline Cards */}
+      <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {activeStatuses.map((key) => {
+          const cfg = STATUS_CONFIG[key];
+          const count = analysis.statusRows[key]?.length || 0;
+          const Icon = cfg.icon;
 
           return (
             <button
-              key={catKey}
-              onClick={() => count > 0 && setExpandedCategory(catKey)}
-              className={`text-left focus:outline-none group ${count === 0 ? "opacity-50 cursor-default" : "cursor-pointer"}`}
-              disabled={count === 0}
-              data-testid={`card-${catKey}`}
+              key={key}
+              onClick={() => setExpandedStatus(key)}
+              className="text-left focus:outline-none group cursor-pointer"
+              data-testid={`card-status-${key}`}
             >
               <Card className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-full rounded-2xl group-hover:scale-[1.02] group-active:scale-[0.98]">
-                <div className={`absolute inset-0 bg-gradient-to-br ${catCfg.gradient}`} />
-                <CardContent className="relative pt-6 pb-5 px-6 text-white">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="h-11 w-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <Icon className="h-5 w-5 text-white" />
+                <div className={`absolute inset-0 bg-gradient-to-br ${cfg.gradient}`} />
+                <CardContent className="relative pt-5 pb-5 px-5 text-white">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                        <Icon className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-white/50 text-sm font-bold">Stage {key}</span>
                     </div>
-                    {count > 0 && (
-                      <ChevronRight className="w-4 h-4 text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
-                    )}
+                    <ChevronRight className="w-4 h-4 text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
                   </div>
-                  <p className="text-4xl font-bold">{count}</p>
-                  <p className="text-white/90 text-sm font-medium mt-1">{catCfg.label}</p>
-                  <p className="text-white/60 text-xs mt-2">{statement}</p>
+                  <p className="text-3xl font-bold">{count}</p>
+                  <p className="text-white/90 text-sm font-semibold mt-1 leading-snug">{cfg.label}</p>
+                  <p className="text-white/60 text-xs mt-2">{count === 1 ? "1 University" : `${count} Universities`}</p>
                 </CardContent>
               </Card>
             </button>
@@ -502,12 +582,12 @@ function StatusDashboard({ tabName, config }: { tabName: string; config: any }) 
       </p>
 
       {/* Detail Modal */}
-      {expandedCategory && (
+      {expandedStatus && (
         <DetailModal
-          open={!!expandedCategory}
-          onClose={() => setExpandedCategory(null)}
-          categoryKey={expandedCategory}
-          rows={analysis.categoryRows[expandedCategory] || []}
+          open={!!expandedStatus}
+          onClose={() => setExpandedStatus(null)}
+          statusKey={expandedStatus}
+          rows={analysis.statusRows[expandedStatus] || []}
           allHeaders={allHeaders}
           statusFields={statusFields}
           universityField={universityField}
