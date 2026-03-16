@@ -1,13 +1,12 @@
 import { Layout } from "@/components/layout";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSheetData, loadConfig } from "@/lib/sheets-api";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  AlertCircle, RefreshCw, Building2, CheckCircle2, Clock, AlertTriangle,
-  FileSpreadsheet, Search, FileDown, XCircle, Loader2, ChevronDown, ChevronRight, Link as LinkIcon,
+  AlertCircle, RefreshCw, Building2, FileSpreadsheet,
+  Search, FileDown, Loader2, ChevronDown, Link as LinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -15,7 +14,7 @@ import { useLocation } from "wouter";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { LogoutButton } from "@/components/LogoutButton";
 
-// ─── Batch config ────────────────────────────────────────────────────────────
+// ─── Batches ──────────────────────────────────────────────────────────────────
 
 const BATCHES = [
   { label: "Batch 4", tabName: "Statuses NIAT'26" },
@@ -23,96 +22,32 @@ const BATCHES = [
   { label: "Batch 2", tabName: "Statuses NIAT'24" },
 ];
 
-// ─── Status config ────────────────────────────────────────────────────────────
+// ─── Status definitions ───────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<string, {
-  label: string;
-  icon: any;
-  gradient: string;
-  border: string;
-  bg: string;
-  color: string;
-  dotColor: string;
-}> = {
-  "0": {
-    label: "Awaiting Partnership team Update",
-    icon: Clock,
-    gradient: "from-red-400 to-red-500",
-    border: "border-red-200 dark:border-red-800",
-    bg: "bg-red-50 dark:bg-red-900/30",
-    color: "text-red-700 dark:text-red-400",
-    dotColor: "bg-red-400",
-  },
-  "1": {
-    label: "Blocked - Leadership / Regulatory Discussion",
-    icon: XCircle,
-    gradient: "from-red-600 to-rose-700",
-    border: "border-red-200 dark:border-red-800",
-    bg: "bg-red-50 dark:bg-red-900/30",
-    color: "text-red-700 dark:text-red-400",
-    dotColor: "bg-red-600",
-  },
-  "2": {
-    label: "Under Review - Structure & Syllabi - Nxtwave Associate Dean Approval Pending",
-    icon: AlertTriangle,
-    gradient: "from-orange-500 to-orange-600",
-    border: "border-orange-200 dark:border-orange-800",
-    bg: "bg-orange-50 dark:bg-orange-900/30",
-    color: "text-orange-700 dark:text-orange-400",
-    dotColor: "bg-orange-500",
-  },
-  "3": {
-    label: "Waiting for University POC Time - Structure & Syllabi",
-    icon: Clock,
-    gradient: "from-orange-600 to-amber-600",
-    border: "border-orange-200 dark:border-orange-800",
-    bg: "bg-orange-50 dark:bg-orange-900/30",
-    color: "text-orange-700 dark:text-orange-400",
-    dotColor: "bg-orange-600",
-  },
-  "4": {
-    label: "CSS File Approved Internally",
-    icon: FileSpreadsheet,
-    gradient: "from-yellow-500 to-amber-500",
-    border: "border-yellow-200 dark:border-yellow-800",
-    bg: "bg-yellow-50 dark:bg-yellow-900/30",
-    color: "text-yellow-700 dark:text-yellow-400",
-    dotColor: "bg-yellow-500",
-  },
-  "5": {
-    label: "Waiting for University BOS Approval",
-    icon: Clock,
-    gradient: "from-amber-500 to-yellow-600",
-    border: "border-yellow-200 dark:border-yellow-800",
-    bg: "bg-yellow-50 dark:bg-yellow-900/30",
-    color: "text-yellow-700 dark:text-yellow-400",
-    dotColor: "bg-yellow-600",
-  },
-  "6": {
-    label: "BOS Approved – Ready for Implementation",
-    icon: CheckCircle2,
-    gradient: "from-emerald-500 to-emerald-600",
-    border: "border-emerald-200 dark:border-emerald-800",
-    bg: "bg-emerald-50 dark:bg-emerald-900/30",
-    color: "text-emerald-700 dark:text-emerald-400",
-    dotColor: "bg-emerald-500",
-  },
-  "7": {
-    label: "No Intervention Required",
-    icon: CheckCircle2,
-    gradient: "from-emerald-400 to-teal-500",
-    border: "border-emerald-200 dark:border-emerald-800",
-    bg: "bg-emerald-50 dark:bg-emerald-900/30",
-    color: "text-emerald-600 dark:text-emerald-400",
-    dotColor: "bg-emerald-400",
-  },
+const STATUS_LABELS: Record<string, string> = {
+  "0": "Awaiting Partnership team Update",
+  "1": "Blocked - Leadership / Regulatory Discussion",
+  "2": "Under Review - Structure & Syllabi - Nxtwave Associate Dean Approval Pending",
+  "3": "Waiting for University POC Time - Structure & Syllabi",
+  "4": "CSS File Approved Internally",
+  "5": "Waiting for University BOS Approval",
+  "6": "BOS Approved – Ready for Implementation",
+  "7": "No Intervention Required",
 };
 
-// ─── Column detection helpers ─────────────────────────────────────────────────
+function countColor(key: string | null): string {
+  if (key === null) return "text-muted-foreground";
+  if (key === "0" || key === "1") return "text-red-600 dark:text-red-400 font-semibold";
+  if (key === "2" || key === "3") return "text-orange-600 dark:text-orange-400 font-semibold";
+  if (key === "4" || key === "5") return "text-yellow-600 dark:text-yellow-400 font-semibold";
+  if (key === "6" || key === "7") return "text-emerald-600 dark:text-emerald-400 font-semibold";
+  return "text-foreground";
+}
+
+// ─── Column detection ─────────────────────────────────────────────────────────
 
 function detectSemesterColumns(headers: string[]): string[] {
-  // For each semester 1-6, find the matching column header
-  const semesters: string[] = [];
+  const cols: string[] = [];
   for (let sem = 1; sem <= 6; sem++) {
     const col = headers.find((h) => {
       const t = h.trim().toLowerCase();
@@ -127,107 +62,86 @@ function detectSemesterColumns(headers: string[]): string[] {
         t.includes(`semester${sem} bos`)
       );
     });
-    if (col) semesters.push(col);
-    else break; // stop at first missing semester
+    if (col) cols.push(col);
+    else break;
   }
-  return semesters;
+  return cols;
 }
 
-function detectField(headers: string[], ...keywords: string[]): string {
+function detectField(headers: string[], ...candidates: string[]): string {
   return (
-    headers.find((h) =>
-      keywords.some((k) => h.trim().toLowerCase() === k.toLowerCase())
-    ) ||
-    headers.find((h) =>
-      keywords.some((k) => h.trim().toLowerCase().includes(k.toLowerCase()))
-    ) ||
+    headers.find((h) => candidates.some((c) => h.trim().toLowerCase() === c.toLowerCase())) ||
+    headers.find((h) => candidates.some((c) => h.trim().toLowerCase().includes(c.toLowerCase()))) ||
     ""
   );
 }
 
-function getStatusKey(val: string): string {
-  const match = val?.trim().match(/^(\d+)[.\s]/);
-  return match ? match[1] : "";
+function getStatusKey(val: string): string | null {
+  if (!val?.trim()) return null;
+  const m = val.trim().match(/^(\d+)[.\s]/);
+  return m ? m[1] : null;
 }
 
-// ─── Export CSV ───────────────────────────────────────────────────────────────
+// ─── Export ───────────────────────────────────────────────────────────────────
 
-function exportCSV(rows: Record<string, string>[], headers: string[], filename: string) {
-  const csvRows = [headers.join(",")];
-  rows.forEach((row) => {
-    csvRows.push(headers.map((h) => `"${(row[h] || "").replace(/"/g, '""')}"`).join(","));
-  });
-  const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+function doExportCSV(rows: Record<string, string>[], headers: string[], filename: string) {
+  const lines = [headers.join(",")];
+  rows.forEach((r) => lines.push(headers.map((h) => `"${(r[h] || "").replace(/"/g, '""')}"`).join(",")));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
   a.click();
   URL.revokeObjectURL(url);
 }
 
-// ─── Drill-down modal ─────────────────────────────────────────────────────────
+// ─── University modal ─────────────────────────────────────────────────────────
 
-function DrillDownModal({
-  open,
-  onClose,
-  statusKey,
-  rows,
-  uniField,
-  codeField,
-  cityField,
-  deliveryField,
-  logoField,
-  linkField,
+function UniversityModal({
+  open, onClose, title, rows,
+  uniField, codeField, cityField, deliveryField, logoField, linkField,
 }: {
-  open: boolean;
-  onClose: () => void;
-  statusKey: string;
+  open: boolean; onClose: () => void; title: string;
   rows: Record<string, string>[];
-  uniField: string;
-  codeField: string;
-  cityField: string;
-  deliveryField: string;
-  logoField: string;
-  linkField: string;
+  uniField: string; codeField: string; cityField: string;
+  deliveryField: string; logoField: string; linkField: string;
 }) {
   const [search, setSearch] = useState("");
-  const cfg = STATUS_CONFIG[statusKey];
-
   const filtered = useMemo(() => {
     if (!search.trim()) return rows;
     const q = search.toLowerCase();
-    return rows.filter((r) =>
-      Object.values(r).some((v) => v.toLowerCase().includes(q))
-    );
+    return rows.filter((r) => Object.values(r).some((v) => v.toLowerCase().includes(q)));
   }, [rows, search]);
-
-  if (!cfg) return null;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <div className={`bg-gradient-to-r ${cfg.gradient} px-6 py-5`}>
+        {/* Modal header */}
+        <div className="bg-slate-800 dark:bg-slate-900 px-6 py-5 border-b border-slate-700">
           <DialogHeader>
-            <DialogTitle className="text-white text-lg font-bold flex items-start gap-2 leading-snug">
-              <cfg.icon className="w-5 h-5 mt-0.5 shrink-0" />
-              {cfg.label}
-            </DialogTitle>
-            <p className="text-white/70 text-sm mt-1">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
+            <DialogTitle className="text-white text-base font-semibold leading-snug">{title}</DialogTitle>
+            <p className="text-slate-400 text-sm mt-0.5">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
           </DialogHeader>
           <div className="relative mt-3">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/60" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search universities..."
-              className="w-full pl-9 pr-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/60 text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+              placeholder="Search universities…"
+              className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-700 text-white placeholder-slate-400 text-sm border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               data-testid="input-detail-search"
             />
           </div>
         </div>
 
+        {/* Row list */}
         <div className="flex-1 overflow-y-auto divide-y divide-border">
+          {/* Table head */}
+          <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 items-center px-6 py-2 bg-muted/60 text-xs font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
+            <span className="w-10" />
+            <span>University</span>
+            <span className="text-right">Details</span>
+          </div>
+
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">
               <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -241,36 +155,38 @@ function DrillDownModal({
               const delivery = row[deliveryField] || "";
               const logo = row[logoField] || "";
               const link = row[linkField] || "";
+              const hasLink = /^https?:\/\//.test(link.trim());
               const initial = name.charAt(0).toUpperCase();
 
               return (
-                <div key={i} className="flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors" data-testid={`modal-row-${i}`}>
+                <div
+                  key={i}
+                  className={`flex items-center gap-4 px-6 py-3.5 hover:bg-muted/40 transition-colors ${i % 2 === 1 ? "bg-muted/20" : ""}`}
+                  data-testid={`modal-row-${i}`}
+                >
                   {logo ? (
                     <img
-                      src={logo}
-                      alt={name}
-                      className="h-10 w-10 rounded-full object-contain bg-white border border-border shrink-0"
+                      src={logo} alt={name}
+                      className="h-9 w-9 rounded-full object-contain bg-white border border-border shrink-0"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className={`h-10 w-10 rounded-full ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
-                      <span className={`text-sm font-bold ${cfg.color}`}>{initial}</span>
+                    <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-border flex items-center justify-center shrink-0">
+                      <span className="text-sm font-bold text-slate-500">{initial}</span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground truncate">{name}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    <p className="font-medium text-foreground text-sm truncate">{name}</p>
+                    <div className="flex flex-wrap gap-x-3 mt-0.5">
                       {code && <span className="text-xs text-muted-foreground">Code: {code}</span>}
                       {city && <span className="text-xs text-muted-foreground">{city}</span>}
                       {delivery && <span className="text-xs text-muted-foreground">{delivery}</span>}
                     </div>
                   </div>
-                  {link && /^https?:\/\//.test(link.trim()) && (
+                  {hasLink && (
                     <a
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={link} target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 shrink-0 transition-colors"
                     >
                       <LinkIcon className="w-3 h-3" /> Sheet
@@ -286,11 +202,12 @@ function DrillDownModal({
   );
 }
 
-// ─── Pivot dashboard for one batch ───────────────────────────────────────────
+// ─── Pivot table ──────────────────────────────────────────────────────────────
 
-function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
-  const [activeSem, setActiveSem] = useState(0); // index into semCols
-  const [openStatusKey, setOpenStatusKey] = useState<string | null>(null);
+function PivotTable({ tabName, config }: { tabName: string; config: any }) {
+  const [activeSem, setActiveSem] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalKey, setModalKey] = useState<string | null>(null); // null = blank status row
 
   const { data, isLoading, error, refetch, isRefetching, dataUpdatedAt } = useQuery({
     queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
@@ -301,56 +218,64 @@ function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
   });
 
   const headers: string[] = useMemo(() => data?.headers ?? [], [data]);
-
-  // Detect semester BOS status columns
   const semCols = useMemo(() => detectSemesterColumns(headers), [headers]);
 
-  // Detect field columns
-  const uniField = useMemo(() => detectField(headers, "University"), [headers]);
-  const codeField = useMemo(() => detectField(headers, "Code"), [headers]);
-  const cityField = useMemo(() => detectField(headers, "City"), [headers]);
+  const uniField     = useMemo(() => detectField(headers, "University"), [headers]);
+  const codeField    = useMemo(() => detectField(headers, "Code"), [headers]);
+  const cityField    = useMemo(() => detectField(headers, "City"), [headers]);
   const deliveryField = useMemo(() => detectField(headers, "Delivery"), [headers]);
-  const logoField = useMemo(() => detectField(headers, "logo URL", "Logo URL", "logo"), [headers]);
-  const linkField = useMemo(() => detectField(headers, "Sheet Link"), [headers]);
+  const logoField    = useMemo(() => detectField(headers, "logo URL", "Logo URL", "logo"), [headers]);
+  const linkField    = useMemo(() => detectField(headers, "Sheet Link"), [headers]);
 
-  // Reset semester selection when tab changes
   useEffect(() => { setActiveSem(0); }, [tabName]);
 
-  // Clamp activeSem if semCols changes
   const semIndex = Math.min(activeSem, Math.max(0, semCols.length - 1));
   const activeCol = semCols[semIndex] ?? "";
 
-  // Group universities by status for active semester column
-  const { grouped, total } = useMemo(() => {
-    if (!data || !activeCol) return { grouped: {} as Record<string, Record<string, string>[]>, total: 0 };
-    const rows = (data.data as Record<string, string>[]).filter(
-      (r) => r[uniField]?.trim()
-    );
-    const grouped: Record<string, Record<string, string>[]> = {};
+  // Build pivot rows: { key: string | null, label: string, rows: [...] }
+  const pivotRows = useMemo(() => {
+    if (!data || !activeCol) return [];
+    const rows = (data.data as Record<string, string>[]).filter((r) => r[uniField]?.trim());
+    const buckets: Record<string, Record<string, string>[]> = {};
+
     rows.forEach((row) => {
       const key = getStatusKey(row[activeCol] || "");
-      if (key === "") return; // skip blank / unrecognised
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(row);
+      const bucketKey = key === null ? "__blank__" : key;
+      if (!buckets[bucketKey]) buckets[bucketKey] = [];
+      buckets[bucketKey].push(row);
     });
-    const total = Object.values(grouped).reduce((s, a) => s + a.length, 0);
-    return { grouped, total };
+
+    // Sort: blank first, then 0,1,2,3...
+    const keys = Object.keys(buckets).sort((a, b) => {
+      if (a === "__blank__") return -1;
+      if (b === "__blank__") return 1;
+      return Number(a) - Number(b);
+    });
+
+    return keys.map((k) => ({
+      key: k === "__blank__" ? null : k,
+      label: k === "__blank__" ? "" : `${k}. ${STATUS_LABELS[k] ?? k}`,
+      rows: buckets[k],
+    }));
   }, [data, activeCol, uniField]);
 
-  const activeStatuses = useMemo(
-    () => (["0","1","2","3","4","5","6","7"] as const).filter((k) => (grouped[k]?.length ?? 0) > 0),
-    [grouped]
-  );
+  const grandTotal = useMemo(() => pivotRows.reduce((s, r) => s + r.rows.length, 0), [pivotRows]);
+
+  const semLabel = `Semester ${semIndex + 1} BOS Status`;
+
+  // Find modal rows
+  const modalRows = useMemo(() => {
+    if (!modalOpen) return [];
+    return pivotRows.find((r) => r.key === modalKey)?.rows ?? [];
+  }, [modalOpen, modalKey, pivotRows]);
+  const modalTitle = modalKey === null ? "(No status)" : `${modalKey}. ${STATUS_LABELS[modalKey] ?? modalKey}`;
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex gap-2">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-24 rounded-xl" />)}
-        </div>
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}
-        </div>
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-full rounded" />
+        {[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-12 w-full rounded" />)}
+        <Skeleton className="h-12 w-full rounded" />
       </div>
     );
   }
@@ -360,7 +285,7 @@ function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error Loading Data</AlertTitle>
-        <AlertDescription>{(error as Error)?.message || "Failed to fetch sheet data."}</AlertDescription>
+        <AlertDescription>{(error as Error)?.message ?? "Failed to fetch sheet data."}</AlertDescription>
       </Alert>
     );
   }
@@ -369,24 +294,23 @@ function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
     return (
       <div className="py-20 text-center text-muted-foreground">
         <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 opacity-20" />
-        <p className="font-semibold">No BOS Status columns found</p>
-        <p className="text-sm mt-1">Check that the sheet has columns like "Sem 1 BOS Status".</p>
+        <p className="font-semibold">No BOS Status columns found in this sheet.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Semester selector */}
       {semCols.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {semCols.map((col, i) => (
+          {semCols.map((_, i) => (
             <button
-              key={col}
+              key={i}
               onClick={() => setActiveSem(i)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
                 semIndex === i
-                  ? "bg-primary text-primary-foreground shadow-md"
+                  ? "bg-primary text-primary-foreground shadow"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
               data-testid={`tab-semester-${i + 1}`}
@@ -397,33 +321,33 @@ function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
         </div>
       )}
 
-      {/* Summary header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Action bar */}
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-            <Building2 className="h-6 w-6 text-white" />
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow">
+            <Building2 className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-3xl font-bold text-foreground">{total}</p>
-            <p className="text-sm text-muted-foreground">Total Universities</p>
+            <span className="text-2xl font-bold text-foreground">{grandTotal}</span>
+            <span className="text-sm text-muted-foreground ml-2">Total Universities</span>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2">
           <Button
             variant="outline" size="sm"
-            onClick={() => exportCSV(
+            onClick={() => doExportCSV(
               data.data as Record<string, string>[],
               headers,
               `${tabName.replace(/[' ]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}.csv`
             )}
-            className="gap-2 rounded-xl"
+            className="gap-1.5 rounded-lg text-xs"
             data-testid="button-export"
           >
             <FileDown className="w-3.5 h-3.5" /> Export
           </Button>
           <Button
             size="sm" onClick={() => refetch()} disabled={isRefetching}
-            className="gap-2 rounded-xl"
+            className="gap-1.5 rounded-lg text-xs"
             data-testid="button-refresh"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
@@ -432,80 +356,77 @@ function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
         </div>
       </div>
 
-      {/* Section label */}
+      {/* Section heading */}
       <div>
-        <h2 className="text-xl font-bold text-foreground tracking-tight">NIAT BOS Approval Status</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {semCols.length > 1 ? `Semester ${semIndex + 1} · ` : ""}
-          Click any card to view universities
-        </p>
+        <h2 className="text-xl font-bold text-foreground">NIAT BOS Approval Status</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Click any row to view universities</p>
       </div>
 
-      {/* Status cards */}
-      {activeStatuses.length === 0 ? (
-        <div className="py-16 text-center text-muted-foreground">
-          <Building2 className="w-10 h-10 mx-auto mb-2 opacity-20" />
-          <p className="font-semibold">No status data yet</p>
-          <p className="text-sm mt-1">The selected semester column appears to be empty.</p>
+      {/* Pivot table */}
+      <div className="rounded-xl overflow-hidden border border-border shadow-sm">
+        {/* Table header */}
+        <div className="grid grid-cols-[1fr_140px] bg-slate-800 dark:bg-slate-900 text-white text-sm font-semibold">
+          <div className="px-5 py-3.5 border-r border-slate-700">{semLabel}</div>
+          <div className="px-5 py-3.5 text-right">Count of Universities</div>
         </div>
-      ) : (
-        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {activeStatuses.map((key) => {
-            const cfg = STATUS_CONFIG[key];
-            const count = grouped[key]?.length ?? 0;
-            const Icon = cfg.icon;
+
+        {/* Data rows */}
+        {pivotRows.length === 0 ? (
+          <div className="px-5 py-10 text-center text-muted-foreground text-sm">
+            No status data for this semester.
+          </div>
+        ) : (
+          pivotRows.map((row, i) => {
+            const isBlank = row.key === null;
+            const cc = isBlank ? "text-muted-foreground" : countColor(row.key);
+
             return (
               <button
-                key={key}
-                onClick={() => setOpenStatusKey(key)}
-                className="text-left focus:outline-none group cursor-pointer"
-                data-testid={`card-status-${key}`}
+                key={row.key ?? "__blank__"}
+                onClick={() => { setModalKey(row.key); setModalOpen(true); }}
+                className={`w-full grid grid-cols-[1fr_140px] text-left text-sm transition-colors cursor-pointer
+                  ${i % 2 === 0 ? "bg-background" : "bg-muted/30 dark:bg-muted/10"}
+                  hover:bg-blue-50 dark:hover:bg-blue-900/20 border-t border-border`}
+                data-testid={`pivot-row-${row.key ?? "blank"}`}
               >
-                <Card className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl group-hover:scale-[1.02] group-active:scale-[0.98]">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${cfg.gradient}`} />
-                  <CardContent className="relative pt-5 pb-5 px-5 text-white">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                          <Icon className="h-5 w-5 text-white" />
-                        </div>
-                        <span className="text-white/50 text-xs font-bold uppercase tracking-wider">Stage {key}</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
-                    </div>
-                    <p className="text-4xl font-bold">{count}</p>
-                    <p className="text-white/90 text-sm font-semibold mt-1 leading-snug">{cfg.label}</p>
-                    <p className="text-white/60 text-xs mt-2">{count === 1 ? "1 University" : `${count} Universities`}</p>
-                  </CardContent>
-                </Card>
+                <div className={`px-5 py-3.5 border-r border-border ${isBlank ? "italic text-muted-foreground" : "text-foreground"}`}>
+                  {row.label || <span className="text-muted-foreground">(blank)</span>}
+                </div>
+                <div className={`px-5 py-3.5 text-right tabular-nums ${cc}`}>
+                  {row.rows.length}
+                </div>
               </button>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
 
-      {/* Sync info */}
+        {/* Grand total */}
+        <div className="grid grid-cols-[1fr_140px] bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 font-bold text-sm">
+          <div className="px-5 py-3.5 border-r border-border text-foreground">Grand Total</div>
+          <div className="px-5 py-3.5 text-right text-foreground tabular-nums">{grandTotal}</div>
+        </div>
+      </div>
+
+      {/* Last sync */}
       {dataUpdatedAt > 0 && (
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-xs text-muted-foreground text-right">
           Last synced: {format(new Date(dataUpdatedAt), "MMM d, yyyy 'at' h:mm a")} · auto-refreshes every 60 s
         </p>
       )}
 
-      {/* Drill-down modal */}
-      {openStatusKey && (
-        <DrillDownModal
-          open={!!openStatusKey}
-          onClose={() => setOpenStatusKey(null)}
-          statusKey={openStatusKey}
-          rows={grouped[openStatusKey] ?? []}
-          uniField={uniField}
-          codeField={codeField}
-          cityField={cityField}
-          deliveryField={deliveryField}
-          logoField={logoField}
-          linkField={linkField}
-        />
-      )}
+      {/* Modal */}
+      <UniversityModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={modalTitle}
+        rows={modalRows}
+        uniField={uniField}
+        codeField={codeField}
+        cityField={cityField}
+        deliveryField={deliveryField}
+        logoField={logoField}
+        linkField={linkField}
+      />
     </div>
   );
 }
@@ -513,27 +434,19 @@ function BatchDashboard({ tabName, config }: { tabName: string; config: any }) {
 // ─── Batch selector ───────────────────────────────────────────────────────────
 
 function BatchSelector({
-  batches,
-  activeBatch,
-  onSelect,
-}: {
-  batches: typeof BATCHES;
-  activeBatch: number;
-  onSelect: (i: number) => void;
-}) {
+  activeBatch, onSelect,
+}: { activeBatch: number; onSelect: (i: number) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const latest = batches[0];
-  const older = batches.slice(1);
+  const latest = BATCHES[0];
+  const older = BATCHES.slice(1);
   const isLatest = activeBatch === 0;
 
   return (
@@ -547,7 +460,6 @@ function BatchSelector({
       >
         {latest.label}
       </button>
-
       {older.length > 0 && (
         <div className="relative">
           <button
@@ -557,8 +469,8 @@ function BatchSelector({
             }`}
             data-testid="dropdown-older-batches"
           >
-            {!isLatest ? batches[activeBatch].label : "Previous Batches"}
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+            {!isLatest ? BATCHES[activeBatch].label : "Previous Batches"}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
           {open && (
             <div className="absolute right-0 top-full mt-1.5 bg-popover border border-border rounded-xl shadow-lg py-1 min-w-[130px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -582,19 +494,14 @@ function BatchSelector({
   );
 }
 
-// ─── Root page ────────────────────────────────────────────────────────────────
+// ─── Page root ────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const config = loadConfig();
-  const [activeBatch, setActiveBatch] = useState(0); // index into BATCHES
+  const [activeBatch, setActiveBatch] = useState(0);
 
-  if (!config) {
-    setLocation("/");
-    return null;
-  }
-
-  const currentBatch = BATCHES[activeBatch];
+  if (!config) { setLocation("/"); return null; }
 
   return (
     <Layout>
@@ -603,34 +510,22 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <h1
-                className="text-2xl md:text-3xl font-bold tracking-tight text-foreground"
-                data-testid="text-report-title"
-              >
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground" data-testid="text-report-title">
                 {config.spreadsheetTitle || "University BOS Dashboard"}
               </h1>
-              <div className="md:hidden">
-                <LogoutButton />
-              </div>
+              <div className="md:hidden"><LogoutButton /></div>
             </div>
             <p className="text-sm text-muted-foreground mt-1">BOS status tracking across NIAT cohorts</p>
           </div>
-
           <div className="flex items-end gap-4">
-            <BatchSelector
-              batches={BATCHES}
-              activeBatch={activeBatch}
-              onSelect={setActiveBatch}
-            />
-            <div className="hidden md:block">
-              <LogoutButton />
-            </div>
+            <BatchSelector activeBatch={activeBatch} onSelect={setActiveBatch} />
+            <div className="hidden md:block"><LogoutButton /></div>
           </div>
         </div>
 
-        {/* Dashboard body */}
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={currentBatch.tabName}>
-          <BatchDashboard tabName={currentBatch.tabName} config={config} />
+        {/* Pivot table */}
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={BATCHES[activeBatch].tabName}>
+          <PivotTable tabName={BATCHES[activeBatch].tabName} config={config} />
         </div>
       </div>
     </Layout>
