@@ -146,3 +146,22 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Dark scrollbars */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.dark ::-webkit-scrollbar-track {
+  background: hsl(222 47% 11%);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(215 20% 35%);
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 20% 45%);
+}
+.dark {
+  scrollbar-color: hsl(215 20% 35%) hsl(222 47% 11%);
+}

@@ -116,7 +116,6 @@ function UniversityRow({
   const city = row[cityField] || "";
   const delivery = row[deliveryField] || "";
   const logo = row[logoField] || "";
-  const link = row[linkField] || "";
   const statusVal = row[activeCol] || "";
   const statusKey = getStatusKey(statusVal);
   const initial = name.charAt(0).toUpperCase();
@@ -135,7 +134,7 @@ function UniversityRow({
 
   return (
     <div
-      className={`${index % 2 === 1 ? "bg-muted/20" : ""}`}
+      className={`${index % 2 === 1 ? "bg-slate-50 dark:bg-slate-800/50" : "bg-white dark:bg-slate-900"}`}
       data-testid={`modal-row-${index}`}
     >
       {/* LEVEL 1: always visible */}
@@ -144,43 +143,43 @@ function UniversityRow({
         {logo ? (
           <img
             src={logo} alt={name}
-            className="h-10 w-10 rounded-full object-contain bg-white border border-border shrink-0"
+            className="h-10 w-10 rounded-full object-contain bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 shrink-0"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 border border-border flex items-center justify-center shrink-0">
-            <span className="text-sm font-bold text-slate-500">{initial}</span>
+          <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-slate-500 dark:text-slate-300">{initial}</span>
           </div>
         )}
 
         {/* Name + meta */}
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-foreground text-sm truncate">
+          <p className="font-semibold text-slate-900 dark:text-white text-sm truncate">
             {name}{code ? ` (${code})` : ""}
           </p>
           <div className="flex flex-wrap items-center gap-x-3 mt-1">
             {/* Status badge */}
             {statusVal && (
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                statusKey === "0" || statusKey === "1" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
-                statusKey === "2" || statusKey === "3" ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400" :
-                statusKey === "4" || statusKey === "5" ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" :
-                statusKey === "6" || statusKey === "7" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" :
-                "bg-muted text-muted-foreground"
+                statusKey === "0" || statusKey === "1" ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400" :
+                statusKey === "2" || statusKey === "3" ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" :
+                statusKey === "4" || statusKey === "5" ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" :
+                statusKey === "6" || statusKey === "7" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" :
+                "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
               }`}>
                 {statusVal}
               </span>
             )}
-            {city && <span className="text-xs text-muted-foreground">{city}</span>}
-            {delivery && <span className="text-xs text-muted-foreground">{delivery}</span>}
+            {city && <span className="text-xs text-slate-500 dark:text-slate-400">{city}</span>}
+            {delivery && <span className="text-xs text-slate-500 dark:text-slate-400">{delivery}</span>}
           </div>
         </div>
 
         {/* Expand button */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-muted hover:bg-muted/80 text-muted-foreground shrink-0"
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 shrink-0"
         >
           <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
           {expanded ? "Less" : "More Details"}
@@ -189,38 +188,40 @@ function UniversityRow({
 
       {/* LEVEL 2: expanded detail grid */}
       {expanded && (
-        <div className="px-6 pb-4 pt-1 ml-14">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            {detailFields.map((h) => {
-              const val = row[h] || "";
-              // Render links as clickable buttons
-              if (isLinkCol(h) && /^https?:\/\//.test(val.trim())) {
-                return (
-                  <div key={h} className="col-span-1 sm:col-span-2">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</span>
-                    <div className="mt-0.5">
-                      <a
-                        href={val.trim()} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 transition-colors"
-                      >
-                        <ExternalLink className="w-3 h-3" /> Open Sheet
-                      </a>
+        <div className="px-6 pb-4 pt-1 ml-14 border-t border-slate-100 dark:border-slate-700/50">
+          <div className="mt-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              {detailFields.map((h) => {
+                const val = row[h] || "";
+                // Render links as clickable buttons
+                if (isLinkCol(h) && /^https?:\/\//.test(val.trim())) {
+                  return (
+                    <div key={h} className="col-span-1 sm:col-span-2">
+                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</span>
+                      <div className="mt-1">
+                        <a
+                          href={val.trim()} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-800/50 border border-blue-200 dark:border-blue-700 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Open Sheet
+                        </a>
+                      </div>
                     </div>
+                  );
+                }
+                // Long text fields span full width
+                const isLong = val.length > 60;
+                return (
+                  <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
+                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</span>
+                    <p className="text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words">{val}</p>
                   </div>
                 );
-              }
-              // Long text fields span full width
-              const isLong = val.length > 60;
-              return (
-                <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</span>
-                  <p className="text-foreground mt-0.5 whitespace-pre-wrap break-words">{val}</p>
-                </div>
-              );
-            })}
-            {detailFields.length === 0 && (
-              <p className="text-muted-foreground text-xs col-span-2">No additional details available.</p>
-            )}
+              })}
+              {detailFields.length === 0 && (
+                <p className="text-slate-400 dark:text-slate-500 text-xs col-span-2">No additional details available.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -250,9 +251,9 @@ function UniversityModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
         {/* Modal header */}
-        <div className="bg-slate-800 dark:bg-slate-900 px-6 py-5 border-b border-slate-700">
+        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-5 border-b border-slate-700">
           <DialogHeader>
             <DialogTitle className="text-white text-base font-semibold leading-snug">{title}</DialogTitle>
             <p className="text-slate-400 text-sm mt-0.5">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
@@ -263,16 +264,16 @@ function UniversityModal({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search universities…"
-              className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-700 text-white placeholder-slate-400 text-sm border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-700 dark:bg-slate-800 text-white placeholder-slate-400 text-sm border border-slate-600 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               data-testid="input-detail-search"
             />
           </div>
         </div>
 
         {/* Row list */}
-        <div className="flex-1 overflow-y-auto divide-y divide-border">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700/50 bg-white dark:bg-slate-900">
           {filtered.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">
+            <div className="py-16 text-center text-slate-400 dark:text-slate-500">
               <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No matching universities</p>
             </div>
@@ -423,8 +424,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
               onClick={() => setActiveSem(i)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
                 semIndex === i
-                  ? "bg-primary text-primary-foreground shadow"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
               }`}
               data-testid={`tab-semester-${entry.sem}`}
             >
@@ -441,8 +442,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
             <Building2 className="h-5 w-5 text-white" />
           </div>
           <div>
-            <span className="text-2xl font-bold text-foreground">{grandTotal}</span>
-            <span className="text-sm text-muted-foreground ml-2">Total Universities</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{grandTotal}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400 ml-2">Total Universities</span>
           </div>
         </div>
         <div className="flex gap-2">
@@ -453,14 +454,14 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
               headers,
               `${tabName.replace(/[' ]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}.csv`
             )}
-            className="gap-1.5 rounded-lg text-xs"
+            className="gap-1.5 rounded-lg text-xs border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
             data-testid="button-export"
           >
             <FileDown className="w-3.5 h-3.5" /> Export
           </Button>
           <Button
             size="sm" onClick={() => refetch()} disabled={isRefetching}
-            className="gap-1.5 rounded-lg text-xs"
+            className="gap-1.5 rounded-lg text-xs bg-blue-600 hover:bg-blue-700 text-white"
             data-testid="button-refresh"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
@@ -471,38 +472,38 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
       {/* Section heading */}
       <div>
-        <h2 className="text-xl font-bold text-foreground">NIAT BOS Approval Status</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">Click any row to view universities</p>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">NIAT BOS Approval Status</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Click any row to view universities</p>
       </div>
 
       {/* Pivot table */}
-      <div className="rounded-xl overflow-hidden border border-border shadow-sm">
+      <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_140px] bg-slate-800 dark:bg-slate-900 text-white text-sm font-semibold">
+        <div className="grid grid-cols-[1fr_140px] bg-slate-800 dark:bg-slate-950 text-white text-sm font-semibold">
           <div className="px-5 py-3.5 border-r border-slate-700">{semLabel}</div>
           <div className="px-5 py-3.5 text-right">Count of Universities</div>
         </div>
 
         {/* Data rows */}
         {pivotRows.length === 0 ? (
-          <div className="px-5 py-10 text-center text-muted-foreground text-sm">
+          <div className="px-5 py-10 text-center text-slate-400 dark:text-slate-500 text-sm bg-white dark:bg-slate-900">
             No status data for this semester.
           </div>
         ) : (
           pivotRows.map((row, i) => {
             const isBlank = row.key === null;
-            const cc = isBlank ? "text-muted-foreground" : countColor(row.key);
+            const cc = isBlank ? "text-slate-400 dark:text-slate-500" : countColor(row.key);
 
             return (
               <button
                 key={row.key ?? "__blank__"}
                 onClick={() => { setModalKey(row.key); setModalOpen(true); }}
                 className={`w-full grid grid-cols-[1fr_140px] text-left text-sm transition-colors cursor-pointer
-                  ${i % 2 === 0 ? "bg-background" : "bg-muted/30 dark:bg-muted/10"}
-                  hover:bg-blue-50 dark:hover:bg-blue-900/20 border-t border-border`}
+                  ${i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50 dark:bg-slate-800/60"}
+                  hover:bg-blue-50 dark:hover:bg-slate-700 border-t border-slate-200 dark:border-slate-700/50`}
                 data-testid={`pivot-row-${row.key ?? "blank"}`}
               >
-                <div className={`px-5 py-3.5 border-r border-border ${isBlank ? "text-muted-foreground" : "text-foreground"}`}>
+                <div className={`px-5 py-3.5 border-r border-slate-200 dark:border-slate-700/50 ${isBlank ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}>
                   {row.label}
                 </div>
                 <div className={`px-5 py-3.5 text-right tabular-nums ${cc}`}>
@@ -515,14 +516,14 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
         {/* Grand total */}
         <div className="grid grid-cols-[1fr_140px] bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 font-bold text-sm">
-          <div className="px-5 py-3.5 border-r border-border text-foreground">Grand Total</div>
-          <div className="px-5 py-3.5 text-right text-foreground tabular-nums">{grandTotal}</div>
+          <div className="px-5 py-3.5 border-r border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">Grand Total</div>
+          <div className="px-5 py-3.5 text-right text-slate-900 dark:text-white tabular-nums">{grandTotal}</div>
         </div>
       </div>
 
       {/* Last sync */}
       {dataUpdatedAt > 0 && (
-        <p className="text-xs text-muted-foreground text-right">
+        <p className="text-xs text-slate-400 dark:text-slate-500 text-right">
           Last synced: {format(new Date(dataUpdatedAt), "MMM d, yyyy 'at' h:mm a")} · auto-refreshes every 60 s
         </p>
       )}
@@ -569,7 +570,7 @@ function BatchSelector({
       <button
         onClick={() => onSelect(0)}
         className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-          isLatest ? "bg-primary text-primary-foreground shadow-md" : "bg-muted text-muted-foreground hover:bg-muted/80"
+          isLatest ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
         }`}
         data-testid="tab-batch-latest"
       >
@@ -580,7 +581,7 @@ function BatchSelector({
           <button
             onClick={() => setOpen(!open)}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-              !isLatest ? "bg-primary text-primary-foreground shadow-md" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              !isLatest ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
             }`}
             data-testid="dropdown-older-batches"
           >
@@ -588,13 +589,13 @@ function BatchSelector({
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
           {open && (
-            <div className="absolute right-0 top-full mt-1.5 bg-popover border border-border rounded-xl shadow-lg py-1 min-w-[130px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 top-full mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 min-w-[130px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
               {older.map((b, i) => (
                 <button
                   key={b.tabName}
                   onClick={() => { onSelect(i + 1); setOpen(false); }}
                   className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                    activeBatch === i + 1 ? "bg-accent text-accent-foreground font-semibold" : "text-foreground hover:bg-accent/50"
+                    activeBatch === i + 1 ? "bg-blue-50 dark:bg-slate-700 text-blue-700 dark:text-blue-400 font-semibold" : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   }`}
                   data-testid={`dropdown-item-${b.label}`}
                 >
@@ -625,12 +626,12 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground" data-testid="text-report-title">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white" data-testid="text-report-title">
                 {config.spreadsheetTitle || "University BOS Dashboard"}
               </h1>
               <div className="md:hidden"><LogoutButton /></div>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">BOS status tracking across NIAT cohorts</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">BOS status tracking across NIAT cohorts</p>
           </div>
           <div className="flex items-end gap-4">
             <BatchSelector activeBatch={activeBatch} onSelect={setActiveBatch} />
