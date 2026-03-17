@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertCircle, RefreshCw, Building2, FileSpreadsheet,
-  Search, FileDown, Loader2, ChevronDown, Link as LinkIcon,
+  Search, FileDown, ChevronDown, ChevronRight, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -92,16 +92,154 @@ function doExportCSV(rows: Record<string, string>[], headers: string[], filename
   URL.revokeObjectURL(url);
 }
 
+// ─── University row (expandable) ──────────────────────────────────────────────
+
+// Columns to hide from the detail grid (already shown in the header area)
+const HEADER_FIELDS_LC = new Set(["university", "logo url", "code", "city", "delivery"]);
+function isLogoCol(h: string) { return /logo/i.test(h); }
+function isLinkCol(h: string) { return /sheet\s*link/i.test(h); }
+
+function UniversityRow({
+  row, index, headers,
+  uniField, codeField, cityField, deliveryField, logoField, linkField,
+  activeCol,
+}: {
+  row: Record<string, string>; index: number; headers: string[];
+  uniField: string; codeField: string; cityField: string;
+  deliveryField: string; logoField: string; linkField: string;
+  activeCol: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const name = row[uniField] || "—";
+  const code = row[codeField] || "";
+  const city = row[cityField] || "";
+  const delivery = row[deliveryField] || "";
+  const logo = row[logoField] || "";
+  const link = row[linkField] || "";
+  const statusVal = row[activeCol] || "";
+  const statusKey = getStatusKey(statusVal);
+  const initial = name.charAt(0).toUpperCase();
+
+  // Detail fields: all headers except those already shown in header area
+  const detailFields = useMemo(() => {
+    return headers.filter((h) => {
+      if (!row[h]?.trim()) return false; // skip empty
+      if (isLogoCol(h)) return false; // logo already rendered as image
+      const lc = h.trim().toLowerCase();
+      if (HEADER_FIELDS_LC.has(lc)) return false;
+      if (activeCol && lc === activeCol.trim().toLowerCase()) return false; // shown as badge
+      return true;
+    });
+  }, [headers, row, activeCol]);
+
+  return (
+    <div
+      className={`${index % 2 === 1 ? "bg-muted/20" : ""}`}
+      data-testid={`modal-row-${index}`}
+    >
+      {/* LEVEL 1: always visible */}
+      <div className="flex items-center gap-4 px-6 py-3.5">
+        {/* Logo */}
+        {logo ? (
+          <img
+            src={logo} alt={name}
+            className="h-10 w-10 rounded-full object-contain bg-white border border-border shrink-0"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 border border-border flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-slate-500">{initial}</span>
+          </div>
+        )}
+
+        {/* Name + meta */}
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-foreground text-sm truncate">
+            {name}{code ? ` (${code})` : ""}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 mt-1">
+            {/* Status badge */}
+            {statusVal && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                statusKey === "0" || statusKey === "1" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
+                statusKey === "2" || statusKey === "3" ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400" :
+                statusKey === "4" || statusKey === "5" ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" :
+                statusKey === "6" || statusKey === "7" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" :
+                "bg-muted text-muted-foreground"
+              }`}>
+                {statusVal}
+              </span>
+            )}
+            {city && <span className="text-xs text-muted-foreground">{city}</span>}
+            {delivery && <span className="text-xs text-muted-foreground">{delivery}</span>}
+          </div>
+        </div>
+
+        {/* Expand button */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-muted hover:bg-muted/80 text-muted-foreground shrink-0"
+        >
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
+          {expanded ? "Less" : "More Details"}
+        </button>
+      </div>
+
+      {/* LEVEL 2: expanded detail grid */}
+      {expanded && (
+        <div className="px-6 pb-4 pt-1 ml-14">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            {detailFields.map((h) => {
+              const val = row[h] || "";
+              // Render links as clickable buttons
+              if (isLinkCol(h) && /^https?:\/\//.test(val.trim())) {
+                return (
+                  <div key={h} className="col-span-1 sm:col-span-2">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</span>
+                    <div className="mt-0.5">
+                      <a
+                        href={val.trim()} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Open Sheet
+                      </a>
+                    </div>
+                  </div>
+                );
+              }
+              // Long text fields span full width
+              const isLong = val.length > 60;
+              return (
+                <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</span>
+                  <p className="text-foreground mt-0.5 whitespace-pre-wrap break-words">{val}</p>
+                </div>
+              );
+            })}
+            {detailFields.length === 0 && (
+              <p className="text-muted-foreground text-xs col-span-2">No additional details available.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── University modal ─────────────────────────────────────────────────────────
 
 function UniversityModal({
-  open, onClose, title, rows,
+  open, onClose, title, rows, headers,
   uniField, codeField, cityField, deliveryField, logoField, linkField,
+  activeCol,
 }: {
   open: boolean; onClose: () => void; title: string;
-  rows: Record<string, string>[];
+  rows: Record<string, string>[]; headers: string[];
   uniField: string; codeField: string; cityField: string;
   deliveryField: string; logoField: string; linkField: string;
+  activeCol: string;
 }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
@@ -133,66 +271,27 @@ function UniversityModal({
 
         {/* Row list */}
         <div className="flex-1 overflow-y-auto divide-y divide-border">
-          {/* Table head */}
-          <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 items-center px-6 py-2 bg-muted/60 text-xs font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
-            <span className="w-10" />
-            <span>University</span>
-            <span className="text-right">Details</span>
-          </div>
-
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">
               <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No matching universities</p>
             </div>
           ) : (
-            filtered.map((row, i) => {
-              const name = row[uniField] || "—";
-              const code = row[codeField] || "";
-              const city = row[cityField] || "";
-              const delivery = row[deliveryField] || "";
-              const logo = row[logoField] || "";
-              const link = row[linkField] || "";
-              const hasLink = /^https?:\/\//.test(link.trim());
-              const initial = name.charAt(0).toUpperCase();
-
-              return (
-                <div
-                  key={i}
-                  className={`flex items-center gap-4 px-6 py-3.5 hover:bg-muted/40 transition-colors ${i % 2 === 1 ? "bg-muted/20" : ""}`}
-                  data-testid={`modal-row-${i}`}
-                >
-                  {logo ? (
-                    <img
-                      src={logo} alt={name}
-                      className="h-9 w-9 rounded-full object-contain bg-white border border-border shrink-0"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-border flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold text-slate-500">{initial}</span>
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{name}</p>
-                    <div className="flex flex-wrap gap-x-3 mt-0.5">
-                      {code && <span className="text-xs text-muted-foreground">Code: {code}</span>}
-                      {city && <span className="text-xs text-muted-foreground">{city}</span>}
-                      {delivery && <span className="text-xs text-muted-foreground">{delivery}</span>}
-                    </div>
-                  </div>
-                  {hasLink && (
-                    <a
-                      href={link} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 shrink-0 transition-colors"
-                    >
-                      <LinkIcon className="w-3 h-3" /> Sheet
-                    </a>
-                  )}
-                </div>
-              );
-            })
+            filtered.map((row, i) => (
+              <UniversityRow
+                key={i}
+                row={row}
+                index={i}
+                headers={headers}
+                uniField={uniField}
+                codeField={codeField}
+                cityField={cityField}
+                deliveryField={deliveryField}
+                logoField={logoField}
+                linkField={linkField}
+                activeCol={activeCol}
+              />
+            ))
           )}
         </div>
       </DialogContent>
@@ -434,12 +533,14 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
         onClose={() => setModalOpen(false)}
         title={modalTitle}
         rows={modalRows}
+        headers={headers}
         uniField={uniField}
         codeField={codeField}
         cityField={cityField}
         deliveryField={deliveryField}
         logoField={logoField}
         linkField={linkField}
+        activeCol={activeCol}
       />
     </div>
   );
