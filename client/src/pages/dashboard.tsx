@@ -46,26 +46,24 @@ function countColor(key: string | null): string {
 
 // ─── Column detection ─────────────────────────────────────────────────────────
 
-function detectSemesterColumns(headers: string[]): string[] {
-  const cols: string[] = [];
-  for (let sem = 1; sem <= 6; sem++) {
+// Returns an array of { sem, col } for every "Sem N BOS Status" column that exists in headers.
+// Checks all 8 possible semesters independently — no early break.
+function detectSemesterColumns(headers: string[]): { sem: number; col: string }[] {
+  const result: { sem: number; col: string }[] = [];
+  for (let sem = 1; sem <= 8; sem++) {
     const col = headers.find((h) => {
-      const t = h.trim().toLowerCase();
+      const t = h.trim().toLowerCase().replace(/\s+/g, " ");
       return (
-        t === `sem ${sem}` ||
-        t === `semester ${sem}` ||
-        t.startsWith(`sem ${sem} `) ||
-        t.startsWith(`semester ${sem} `) ||
-        t.includes(`sem ${sem} bos`) ||
-        t.includes(`semester ${sem} bos`) ||
-        t.includes(`sem${sem} bos`) ||
-        t.includes(`semester${sem} bos`)
+        (t.includes(`sem ${sem}`) || t.includes(`semester ${sem}`)) &&
+        t.includes("bos")
       );
     });
-    if (col) cols.push(col);
-    else break;
+    if (col) {
+      console.log(`Matched BOS column for Semester ${sem}:`, col);
+      result.push({ sem, col });
+    }
   }
-  return cols;
+  return result;
 }
 
 function detectField(headers: string[], ...candidates: string[]): string {
@@ -218,21 +216,35 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   });
 
   const headers: string[] = useMemo(() => data?.headers ?? [], [data]);
+
+  // Debug: log raw sheet headers and first row whenever data loads
+  useEffect(() => {
+    if (data) {
+      console.log("Sheet headers:", data.headers);
+      console.log("First row data:", (data.data as Record<string, string>[])?.[0]);
+    }
+  }, [data]);
+
+  // semCols is { sem: number; col: string }[] — only semesters whose column exists in the sheet
   const semCols = useMemo(() => detectSemesterColumns(headers), [headers]);
 
-  const uniField     = useMemo(() => detectField(headers, "University"), [headers]);
-  const codeField    = useMemo(() => detectField(headers, "Code"), [headers]);
-  const cityField    = useMemo(() => detectField(headers, "City"), [headers]);
+  const uniField      = useMemo(() => detectField(headers, "University"), [headers]);
+  const codeField     = useMemo(() => detectField(headers, "Code"), [headers]);
+  const cityField     = useMemo(() => detectField(headers, "City"), [headers]);
   const deliveryField = useMemo(() => detectField(headers, "Delivery"), [headers]);
-  const logoField    = useMemo(() => detectField(headers, "logo URL", "Logo URL", "logo"), [headers]);
-  const linkField    = useMemo(() => detectField(headers, "Sheet Link"), [headers]);
+  const logoField     = useMemo(() => detectField(headers, "logo URL", "Logo URL", "logo"), [headers]);
+  const linkField     = useMemo(() => detectField(headers, "Sheet Link"), [headers]);
 
   useEffect(() => { setActiveSem(0); }, [tabName]);
 
   const semIndex = Math.min(activeSem, Math.max(0, semCols.length - 1));
-  const activeCol = semCols[semIndex] ?? "";
+  // Derive activeCol from the selected entry — reading ONLY that semester's column
+  const activeEntry = semCols[semIndex];
+  const activeCol = activeEntry?.col ?? "";
 
   // Build pivot rows: { key: string | null, label: string, rows: [...] }
+  const BLANK_LABEL = "Timeline for BOS is not yet decided";
+
   const pivotRows = useMemo(() => {
     if (!data || !activeCol) return [];
     const rows = (data.data as Record<string, string>[]).filter((r) => r[uniField]?.trim());
@@ -245,7 +257,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
       buckets[bucketKey].push(row);
     });
 
-    // Sort: blank first, then 0,1,2,3...
+    // Sort: blank first, then 0, 1, 2, 3 …
     const keys = Object.keys(buckets).sort((a, b) => {
       if (a === "__blank__") return -1;
       if (b === "__blank__") return 1;
@@ -254,21 +266,23 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
     return keys.map((k) => ({
       key: k === "__blank__" ? null : k,
-      label: k === "__blank__" ? "" : `${k}. ${STATUS_LABELS[k] ?? k}`,
+      label: k === "__blank__" ? BLANK_LABEL : `${k}. ${STATUS_LABELS[k] ?? k}`,
       rows: buckets[k],
     }));
   }, [data, activeCol, uniField]);
 
   const grandTotal = useMemo(() => pivotRows.reduce((s, r) => s + r.rows.length, 0), [pivotRows]);
 
-  const semLabel = `Semester ${semIndex + 1} BOS Status`;
+  const semLabel = activeEntry ? `Semester ${activeEntry.sem} BOS Status` : "BOS Status";
 
   // Find modal rows
   const modalRows = useMemo(() => {
     if (!modalOpen) return [];
     return pivotRows.find((r) => r.key === modalKey)?.rows ?? [];
   }, [modalOpen, modalKey, pivotRows]);
-  const modalTitle = modalKey === null ? "(No status)" : `${modalKey}. ${STATUS_LABELS[modalKey] ?? modalKey}`;
+  const modalTitle = modalKey === null
+    ? BLANK_LABEL
+    : `${modalKey}. ${STATUS_LABELS[modalKey] ?? modalKey}`;
 
   if (isLoading) {
     return (
@@ -301,21 +315,21 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
   return (
     <div className="space-y-5">
-      {/* Semester selector */}
+      {/* Semester selector — only shown when more than one semester column exists */}
       {semCols.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {semCols.map((_, i) => (
+          {semCols.map((entry, i) => (
             <button
-              key={i}
+              key={entry.sem}
               onClick={() => setActiveSem(i)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
                 semIndex === i
                   ? "bg-primary text-primary-foreground shadow"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              data-testid={`tab-semester-${i + 1}`}
+              data-testid={`tab-semester-${entry.sem}`}
             >
-              Semester {i + 1}
+              Semester {entry.sem}
             </button>
           ))}
         </div>
@@ -389,8 +403,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
                   hover:bg-blue-50 dark:hover:bg-blue-900/20 border-t border-border`}
                 data-testid={`pivot-row-${row.key ?? "blank"}`}
               >
-                <div className={`px-5 py-3.5 border-r border-border ${isBlank ? "italic text-muted-foreground" : "text-foreground"}`}>
-                  {row.label || <span className="text-muted-foreground">(blank)</span>}
+                <div className={`px-5 py-3.5 border-r border-border ${isBlank ? "text-muted-foreground" : "text-foreground"}`}>
+                  {row.label}
                 </div>
                 <div className={`px-5 py-3.5 text-right tabular-nums ${cc}`}>
                   {row.rows.length}
