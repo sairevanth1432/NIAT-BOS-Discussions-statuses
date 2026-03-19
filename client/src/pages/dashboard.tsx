@@ -99,6 +99,27 @@ function doExportCSV(rows: Record<string, string>[], headers: string[], filename
 const HEADER_FIELDS_LC = new Set(["university", "logo url", "code", "city", "delivery"]);
 function isLogoCol(h: string) { return /logo/i.test(h); }
 function isLinkCol(h: string) { return /sheet\s*link/i.test(h); }
+function isDocUrlCol(h: string) { return /sheet\s*url.*curriculum|sem\s*\d+\s*detailed\s*syllabus\s*url/i.test(h); }
+
+// Document link definitions for the 3 URL columns
+const DOC_LINKS: { test: (h: string) => boolean; label: string; color: string; hoverColor: string }[] = [
+  { test: (h) => /sheet\s*url.*curriculum/i.test(h), label: "Curriculum Sheet", color: "bg-blue-600", hoverColor: "hover:bg-blue-500" },
+  { test: (h) => /sem\s*1\s*detailed\s*syllabus/i.test(h), label: "Sem 1 Syllabus", color: "bg-indigo-600", hoverColor: "hover:bg-indigo-500" },
+  { test: (h) => /sem\s*2\s*detailed\s*syllabus/i.test(h), label: "Sem 2 Syllabus", color: "bg-purple-600", hoverColor: "hover:bg-purple-500" },
+];
+
+function getDocLinks(row: Record<string, string>, headers: string[]): { label: string; url: string; color: string; hoverColor: string }[] {
+  const results: { label: string; url: string; color: string; hoverColor: string }[] = [];
+  for (const doc of DOC_LINKS) {
+    const col = headers.find((h) => doc.test(h));
+    if (!col) continue;
+    const val = (row[col] || "").trim();
+    if (val && /^https?:\/\//.test(val)) {
+      results.push({ label: doc.label, url: val, color: doc.color, hoverColor: doc.hoverColor });
+    }
+  }
+  return results;
+}
 
 // Grouping for detail sections
 const SECTION_MATCHERS: { title: string; test: (h: string) => boolean }[] = [
@@ -114,16 +135,6 @@ function classifyField(h: string): string {
   return "Other";
 }
 
-function getSheetLinkInfo(row: Record<string, string>, linkField: string, headers: string[]): { url: string | null; text: string | null } {
-  const linkHeaders = linkField ? [linkField] : headers.filter((h) => isLinkCol(h));
-  for (const h of linkHeaders) {
-    const val = (row[h] || "").trim();
-    if (!val) continue;
-    if (/^https?:\/\//.test(val)) return { url: val, text: null };
-    return { url: null, text: val };
-  }
-  return { url: null, text: null };
-}
 
 function QuickInfoPill({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
   return (
@@ -136,12 +147,12 @@ function QuickInfoPill({ icon: Icon, children }: { icon: React.ElementType; chil
 
 function UniversityRow({
   row, index, headers,
-  uniField, codeField, cityField, deliveryField, logoField, linkField,
+  uniField, codeField, cityField, deliveryField, logoField,
   activeCol, studentField, startDateField,
 }: {
   row: Record<string, string>; index: number; headers: string[];
   uniField: string; codeField: string; cityField: string;
-  deliveryField: string; logoField: string; linkField: string;
+  deliveryField: string; logoField: string;
   activeCol: string; studentField: string; startDateField: string;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -157,7 +168,7 @@ function UniversityRow({
   const statusVal = row[activeCol] || "";
   const statusKey = getStatusKey(statusVal);
   const initial = name.charAt(0).toUpperCase();
-  const sheetLink = getSheetLinkInfo(row, linkField, headers);
+  const docLinks = getDocLinks(row, headers);
 
   // Detail fields grouped by section
   const groupedDetails = useMemo(() => {
@@ -165,6 +176,7 @@ function UniversityRow({
       if (!row[h]?.trim()) return false;
       if (isLogoCol(h)) return false;
       if (isLinkCol(h)) return false;
+      if (isDocUrlCol(h)) return false;
       const lc = h.trim().toLowerCase();
       if (HEADER_FIELDS_LC.has(lc)) return false;
       if (lc === (studentField || "").trim().toLowerCase() && studentField) return false;
@@ -232,26 +244,27 @@ function UniversityRow({
             {students && <QuickInfoPill icon={GraduationCap}>{students}</QuickInfoPill>}
             {startDate && <QuickInfoPill icon={Calendar}>{startDate}</QuickInfoPill>}
           </div>
+          {/* Document link buttons */}
+          {docLinks.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {docLinks.map((doc) => (
+                <a
+                  key={doc.label}
+                  href={doc.url} target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${doc.color} ${doc.hoverColor} text-white text-xs font-medium transition-all duration-150 hover:brightness-110 shadow-sm`}
+                >
+                  {doc.label} <ExternalLink className="w-3 h-3" />
+                </a>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Right side: status badge + sheet button */}
+        {/* Right side: status badge */}
         <div className="flex flex-col items-end gap-2 shrink-0">
           {statusVal && (
             <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${statusBadgeClass}`}>
               {statusKey !== null ? `${statusKey}.` : ""} {STATUS_LABELS[statusKey ?? ""] || statusVal}
-            </span>
-          )}
-          {sheetLink.url && (
-            <a
-              href={sheetLink.url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all duration-150 hover:brightness-110 shadow-sm"
-            >
-              Open Sheet <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-          {sheetLink.text && !sheetLink.url && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 text-slate-400 text-xs font-medium" title="Link not available">
-              {sheetLink.text.length > 30 ? sheetLink.text.slice(0, 30) + "…" : sheetLink.text}
             </span>
           )}
         </div>
@@ -296,22 +309,25 @@ function UniversityRow({
             </div>
           ))}
 
-          {groupedDetails.length === 0 && (
+          {groupedDetails.length === 0 && docLinks.length === 0 && (
             <p className="text-slate-500 text-xs mt-3">No additional details available.</p>
           )}
 
-          {/* Bottom sheet link button */}
-          {sheetLink.url && (
-            <a
-              href={sheetLink.url} target="_blank" rel="noopener noreferrer"
-              className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-semibold transition-all duration-200 hover:brightness-110 shadow-md"
-            >
-              Open Curriculum Sheet <ExternalLink className="w-4 h-4" />
-            </a>
-          )}
-          {sheetLink.text && !sheetLink.url && (
-            <div className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-700 text-slate-400 text-sm font-medium">
-              Sheet: {sheetLink.text} <span className="text-xs text-slate-500">(link not available)</span>
+          {/* Documents section */}
+          {docLinks.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Documents</h4>
+              <div className="flex flex-col gap-2">
+                {docLinks.map((doc) => (
+                  <a
+                    key={doc.label}
+                    href={doc.url} target="_blank" rel="noopener noreferrer"
+                    className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl ${doc.color} ${doc.hoverColor} text-white text-sm font-semibold transition-all duration-200 hover:brightness-110 shadow-md`}
+                  >
+                    {doc.label} <ExternalLink className="w-4 h-4" />
+                  </a>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -324,13 +340,13 @@ function UniversityRow({
 
 function UniversityModal({
   open, onClose, title, rows, headers,
-  uniField, codeField, cityField, deliveryField, logoField, linkField,
+  uniField, codeField, cityField, deliveryField, logoField,
   activeCol, studentField, startDateField,
 }: {
   open: boolean; onClose: () => void; title: string;
   rows: Record<string, string>[]; headers: string[];
   uniField: string; codeField: string; cityField: string;
-  deliveryField: string; logoField: string; linkField: string;
+  deliveryField: string; logoField: string;
   activeCol: string; studentField: string; startDateField: string;
 }) {
   const [search, setSearch] = useState("");
@@ -380,7 +396,6 @@ function UniversityModal({
                 cityField={cityField}
                 deliveryField={deliveryField}
                 logoField={logoField}
-                linkField={linkField}
                 activeCol={activeCol}
                 studentField={studentField}
                 startDateField={startDateField}
@@ -426,7 +441,6 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const cityField     = useMemo(() => detectField(headers, "City"), [headers]);
   const deliveryField = useMemo(() => detectField(headers, "Delivery"), [headers]);
   const logoField     = useMemo(() => detectField(headers, "logo URL", "Logo URL", "logo"), [headers]);
-  const linkField     = useMemo(() => detectField(headers, "Sheet Link"), [headers]);
   const studentField  = useMemo(() => detectField(headers, "Student Count", "Students", "No of Students", "Number of Students"), [headers]);
   const startDateField = useMemo(() => detectField(headers, "Start Date", "Starting Date", "Batch Start"), [headers]);
 
@@ -635,7 +649,6 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
         cityField={cityField}
         deliveryField={deliveryField}
         logoField={logoField}
-        linkField={linkField}
         activeCol={activeCol}
         studentField={studentField}
         startDateField={startDateField}
