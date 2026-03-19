@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   AlertCircle, RefreshCw, Building2, FileSpreadsheet,
   Search, FileDown, ChevronDown, ChevronRight, ExternalLink,
+  MapPin, GraduationCap, Calendar, Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -99,132 +100,222 @@ const HEADER_FIELDS_LC = new Set(["university", "logo url", "code", "city", "del
 function isLogoCol(h: string) { return /logo/i.test(h); }
 function isLinkCol(h: string) { return /sheet\s*link/i.test(h); }
 
+// Grouping for detail sections
+const SECTION_MATCHERS: { title: string; test: (h: string) => boolean }[] = [
+  { title: "BOS Status", test: (h) => /sem(ester)?\s*\d.*bos/i.test(h) },
+  { title: "Meeting Details", test: (h) => /meeting|action\s*item|timeline.*close|number.*meeting/i.test(h) },
+  { title: "Curriculum", test: (h) => /course|curriculum|framework|evaluation|syllab/i.test(h) },
+];
+
+function classifyField(h: string): string {
+  for (const s of SECTION_MATCHERS) {
+    if (s.test(h)) return s.title;
+  }
+  return "Other";
+}
+
+function getSheetLinkInfo(row: Record<string, string>, linkField: string, headers: string[]): { url: string | null; text: string | null } {
+  const linkHeaders = linkField ? [linkField] : headers.filter((h) => isLinkCol(h));
+  for (const h of linkHeaders) {
+    const val = (row[h] || "").trim();
+    if (!val) continue;
+    if (/^https?:\/\//.test(val)) return { url: val, text: null };
+    return { url: null, text: val };
+  }
+  return { url: null, text: null };
+}
+
+function QuickInfoPill({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 text-xs font-medium">
+      <Icon className="w-3 h-3 text-slate-400" />
+      {children}
+    </span>
+  );
+}
+
 function UniversityRow({
   row, index, headers,
   uniField, codeField, cityField, deliveryField, logoField, linkField,
-  activeCol,
+  activeCol, studentField, startDateField,
 }: {
   row: Record<string, string>; index: number; headers: string[];
   uniField: string; codeField: string; cityField: string;
   deliveryField: string; logoField: string; linkField: string;
-  activeCol: string;
+  activeCol: string; studentField: string; startDateField: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const name = row[uniField] || "—";
   const code = row[codeField] || "";
   const city = row[cityField] || "";
   const delivery = row[deliveryField] || "";
   const logo = row[logoField] || "";
+  const students = row[studentField] || "";
+  const startDate = row[startDateField] || "";
   const statusVal = row[activeCol] || "";
   const statusKey = getStatusKey(statusVal);
   const initial = name.charAt(0).toUpperCase();
+  const sheetLink = getSheetLinkInfo(row, linkField, headers);
 
-  // Detail fields: all headers except those already shown in header area
-  const detailFields = useMemo(() => {
-    return headers.filter((h) => {
-      if (!row[h]?.trim()) return false; // skip empty
-      if (isLogoCol(h)) return false; // logo already rendered as image
+  // Detail fields grouped by section
+  const groupedDetails = useMemo(() => {
+    const fields = headers.filter((h) => {
+      if (!row[h]?.trim()) return false;
+      if (isLogoCol(h)) return false;
+      if (isLinkCol(h)) return false;
       const lc = h.trim().toLowerCase();
       if (HEADER_FIELDS_LC.has(lc)) return false;
-      if (activeCol && lc === activeCol.trim().toLowerCase()) return false; // shown as badge
+      if (lc === (studentField || "").trim().toLowerCase() && studentField) return false;
+      if (lc === (startDateField || "").trim().toLowerCase() && startDateField) return false;
+      if (activeCol && lc === activeCol.trim().toLowerCase()) return false;
       return true;
     });
-  }, [headers, row, activeCol]);
+
+    const groups: Record<string, string[]> = {};
+    fields.forEach((h) => {
+      const section = classifyField(h);
+      if (!groups[section]) groups[section] = [];
+      groups[section].push(h);
+    });
+
+    const ordered: { title: string; fields: string[] }[] = [];
+    for (const s of SECTION_MATCHERS) {
+      if (groups[s.title]) ordered.push({ title: s.title, fields: groups[s.title] });
+    }
+    if (groups["Other"]) ordered.push({ title: "Other", fields: groups["Other"] });
+    return ordered;
+  }, [headers, row, activeCol, studentField, startDateField]);
+
+  const statusBadgeClass =
+    statusKey === "0" || statusKey === "1" ? "bg-red-500/20 text-red-400 border-red-500/30" :
+    statusKey === "2" || statusKey === "3" ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
+    statusKey === "4" || statusKey === "5" ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" :
+    statusKey === "6" || statusKey === "7" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+    "bg-slate-700 text-slate-300 border-slate-600";
 
   return (
     <div
-      className={`${index % 2 === 1 ? "bg-slate-50 dark:bg-slate-800/50" : "bg-white dark:bg-slate-900"}`}
+      className="bg-slate-800 hover:bg-slate-800/80 transition-all duration-200 hover:-translate-y-px hover:shadow-lg hover:shadow-slate-900/50 rounded-xl border border-slate-700 mb-2"
       data-testid={`modal-row-${index}`}
     >
-      {/* LEVEL 1: always visible */}
-      <div className="flex items-center gap-4 px-6 py-3.5">
+      {/* CARD HEADER */}
+      <div className="flex items-start gap-4 px-5 py-4">
         {/* Logo */}
         {logo ? (
           <img
             src={logo} alt={name}
-            className="h-10 w-10 rounded-full object-contain bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 shrink-0"
+            className="h-12 w-12 rounded-lg object-contain bg-white/10 border border-slate-600 shrink-0"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center shrink-0">
-            <span className="text-sm font-bold text-slate-500 dark:text-slate-300">{initial}</span>
+          <div className="h-12 w-12 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center shrink-0">
+            <span className="text-base font-bold text-slate-300">{initial}</span>
           </div>
         )}
 
-        {/* Name + meta */}
+        {/* Name + code + quick info */}
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-slate-900 dark:text-white text-sm truncate">
-            {name}{code ? ` (${code})` : ""}
-          </p>
-          <div className="flex flex-wrap items-center gap-x-3 mt-1">
-            {/* Status badge */}
-            {statusVal && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                statusKey === "0" || statusKey === "1" ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400" :
-                statusKey === "2" || statusKey === "3" ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" :
-                statusKey === "4" || statusKey === "5" ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" :
-                statusKey === "6" || statusKey === "7" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" :
-                "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-              }`}>
-                {statusVal}
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-white text-base truncate">{name}</p>
+            {code && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-700 text-slate-400 text-xs font-medium shrink-0">
+                {code}
               </span>
             )}
-            {city && <span className="text-xs text-slate-500 dark:text-slate-400">{city}</span>}
-            {delivery && <span className="text-xs text-slate-500 dark:text-slate-400">{delivery}</span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {city && <QuickInfoPill icon={MapPin}>{city}</QuickInfoPill>}
+            {delivery && <QuickInfoPill icon={Landmark}>{delivery}</QuickInfoPill>}
+            {students && <QuickInfoPill icon={GraduationCap}>{students}</QuickInfoPill>}
+            {startDate && <QuickInfoPill icon={Calendar}>{startDate}</QuickInfoPill>}
           </div>
         </div>
 
-        {/* Expand button */}
+        {/* Right side: status badge + sheet button */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {statusVal && (
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${statusBadgeClass}`}>
+              {statusKey !== null ? `${statusKey}.` : ""} {STATUS_LABELS[statusKey ?? ""] || statusVal}
+            </span>
+          )}
+          {sheetLink.url && (
+            <a
+              href={sheetLink.url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all duration-150 hover:brightness-110 shadow-sm"
+            >
+              Open Sheet <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+          {sheetLink.text && !sheetLink.url && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 text-slate-400 text-xs font-medium" title="Link not available">
+              {sheetLink.text.length > 30 ? sheetLink.text.slice(0, 30) + "…" : sheetLink.text}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* SEPARATOR + EXPAND BUTTON */}
+      <div className="border-t border-slate-700/50 px-5 py-2 flex justify-between items-center">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 shrink-0"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white"
         >
-          <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
-          {expanded ? "Less" : "More Details"}
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-90" : ""}`} />
+          {expanded ? "Less Details" : "More Details"}
         </button>
       </div>
 
-      {/* LEVEL 2: expanded detail grid */}
-      {expanded && (
-        <div className="px-6 pb-4 pt-1 ml-14 border-t border-slate-100 dark:border-slate-700/50">
-          <div className="mt-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              {detailFields.map((h) => {
-                const val = row[h] || "";
-                // Render links as clickable buttons
-                if (isLinkCol(h) && /^https?:\/\//.test(val.trim())) {
+      {/* EXPANDABLE DETAIL SECTION */}
+      <div
+        ref={detailRef}
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: expanded ? (detailRef.current?.scrollHeight ?? 2000) + "px" : "0px",
+          opacity: expanded ? 1 : 0,
+        }}
+      >
+        <div className="px-5 pb-5 pt-1 border-t border-slate-700/50">
+          {groupedDetails.map((section) => (
+            <div key={section.title} className="mt-4 first:mt-2">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{section.title}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                {section.fields.map((h) => {
+                  const val = row[h] || "";
+                  const isLong = val.length > 60;
                   return (
-                    <div key={h} className="col-span-1 sm:col-span-2">
-                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</span>
-                      <div className="mt-1">
-                        <a
-                          href={val.trim()} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-800/50 border border-blue-200 dark:border-blue-700 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Open Sheet
-                        </a>
-                      </div>
+                    <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</span>
+                      <p className="text-slate-100 mt-0.5 whitespace-pre-wrap break-words leading-relaxed">{val}</p>
                     </div>
                   );
-                }
-                // Long text fields span full width
-                const isLong = val.length > 60;
-                return (
-                  <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
-                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">{h}</span>
-                    <p className="text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words">{val}</p>
-                  </div>
-                );
-              })}
-              {detailFields.length === 0 && (
-                <p className="text-slate-400 dark:text-slate-500 text-xs col-span-2">No additional details available.</p>
-              )}
+                })}
+              </div>
             </div>
-          </div>
+          ))}
+
+          {groupedDetails.length === 0 && (
+            <p className="text-slate-500 text-xs mt-3">No additional details available.</p>
+          )}
+
+          {/* Bottom sheet link button */}
+          {sheetLink.url && (
+            <a
+              href={sheetLink.url} target="_blank" rel="noopener noreferrer"
+              className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-semibold transition-all duration-200 hover:brightness-110 shadow-md"
+            >
+              Open Curriculum Sheet <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+          {sheetLink.text && !sheetLink.url && (
+            <div className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-700 text-slate-400 text-sm font-medium">
+              Sheet: {sheetLink.text} <span className="text-xs text-slate-500">(link not available)</span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -234,13 +325,13 @@ function UniversityRow({
 function UniversityModal({
   open, onClose, title, rows, headers,
   uniField, codeField, cityField, deliveryField, logoField, linkField,
-  activeCol,
+  activeCol, studentField, startDateField,
 }: {
   open: boolean; onClose: () => void; title: string;
   rows: Record<string, string>[]; headers: string[];
   uniField: string; codeField: string; cityField: string;
   deliveryField: string; logoField: string; linkField: string;
-  activeCol: string;
+  activeCol: string; studentField: string; startDateField: string;
 }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
@@ -251,29 +342,29 @@ function UniversityModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+      <DialogContent className="max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col p-0 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50">
         {/* Modal header */}
-        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-5 border-b border-slate-700">
+        <div className="bg-slate-900 px-6 py-5 border-b border-slate-700">
           <DialogHeader>
-            <DialogTitle className="text-white text-base font-semibold leading-snug">{title}</DialogTitle>
-            <p className="text-slate-400 text-sm mt-0.5">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
+            <DialogTitle className="text-white text-lg font-bold leading-snug">{title}</DialogTitle>
+            <p className="text-slate-400 text-sm mt-1">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
           </DialogHeader>
-          <div className="relative mt-3">
+          <div className="relative mt-4">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search universities…"
-              className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-700 dark:bg-slate-800 text-white placeholder-slate-400 text-sm border border-slate-600 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-800 text-white placeholder-slate-500 text-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               data-testid="input-detail-search"
             />
           </div>
         </div>
 
-        {/* Row list */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700/50 bg-white dark:bg-slate-900">
+        {/* University cards list */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900">
           {filtered.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 dark:text-slate-500">
+            <div className="py-16 text-center text-slate-500">
               <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No matching universities</p>
             </div>
@@ -291,6 +382,8 @@ function UniversityModal({
                 logoField={logoField}
                 linkField={linkField}
                 activeCol={activeCol}
+                studentField={studentField}
+                startDateField={startDateField}
               />
             ))
           )}
@@ -334,6 +427,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const deliveryField = useMemo(() => detectField(headers, "Delivery"), [headers]);
   const logoField     = useMemo(() => detectField(headers, "logo URL", "Logo URL", "logo"), [headers]);
   const linkField     = useMemo(() => detectField(headers, "Sheet Link"), [headers]);
+  const studentField  = useMemo(() => detectField(headers, "Student Count", "Students", "No of Students", "Number of Students"), [headers]);
+  const startDateField = useMemo(() => detectField(headers, "Start Date", "Starting Date", "Batch Start"), [headers]);
 
   useEffect(() => { setActiveSem(0); }, [tabName]);
 
@@ -542,6 +637,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
         logoField={logoField}
         linkField={linkField}
         activeCol={activeCol}
+        studentField={studentField}
+        startDateField={startDateField}
       />
     </div>
   );
