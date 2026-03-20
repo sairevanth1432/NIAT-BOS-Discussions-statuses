@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   AlertCircle, RefreshCw, Building2, FileSpreadsheet,
   Search, FileDown, ChevronDown, ChevronRight, ExternalLink,
-  MapPin, GraduationCap, Calendar, Landmark,
+  MapPin, GraduationCap, Calendar, Landmark, FileText, Table,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -17,16 +17,12 @@ import { LogoutButton } from "@/components/LogoutButton";
 
 // ─── Tab filtering ───────────────────────────────────────────────────────────
 
-// Only show tabs that look like status/university data tabs
 const EXCLUDED_TABS = ["bos status dropdowns", "transcripts"];
 
 function isStatusTab(name: string): boolean {
   const lc = name.trim().toLowerCase();
   if (EXCLUDED_TABS.some((ex) => lc === ex)) return false;
-  // Include tabs starting with "Statuses" or containing university data
   if (lc.startsWith("statuses")) return true;
-  // Also include if it doesn't match known non-status patterns
-  // Be permissive: exclude only known non-status tabs
   return !lc.includes("dropdown") && !lc.includes("transcript");
 }
 
@@ -54,8 +50,6 @@ function countColor(key: string | null): string {
 
 // ─── Column detection ─────────────────────────────────────────────────────────
 
-// Returns an array of { sem, col } for every "Sem N BOS Status" column that exists in headers.
-// Checks all 8 possible semesters independently — no early break.
 function detectSemesterColumns(headers: string[]): { sem: number; col: string }[] {
   const result: { sem: number; col: string }[] = [];
   for (let sem = 1; sem <= 8; sem++) {
@@ -102,33 +96,32 @@ function doExportCSV(rows: Record<string, string>[], headers: string[], filename
 
 // ─── University row (expandable) ──────────────────────────────────────────────
 
-// Columns to hide from the detail grid (already shown in the header area)
 const HEADER_FIELDS_LC = new Set(["university", "logo url", "code", "city", "delivery"]);
 function isLogoCol(h: string) { return /logo/i.test(h); }
 function isLinkCol(h: string) { return /sheet\s*link/i.test(h); }
 function isDocUrlCol(h: string) { return /sheet\s*url.*curriculum|sem\s*\d+\s*detailed\s*syllabus\s*url/i.test(h); }
 
-// Document link definitions for the 3 URL columns
-const DOC_LINKS: { test: (h: string) => boolean; label: string; color: string; hoverColor: string }[] = [
-  { test: (h) => /sheet\s*url.*curriculum/i.test(h), label: "Curriculum Sheet", color: "bg-blue-600", hoverColor: "hover:bg-blue-500" },
-  { test: (h) => /sem\s*1\s*detailed\s*syllabus/i.test(h), label: "Sem 1 Syllabus", color: "bg-indigo-600", hoverColor: "hover:bg-indigo-500" },
-  { test: (h) => /sem\s*2\s*detailed\s*syllabus/i.test(h), label: "Sem 2 Syllabus", color: "bg-purple-600", hoverColor: "hover:bg-purple-500" },
+// Document link definitions
+const DOC_LINKS: { test: (h: string) => boolean; label: string; iconType: "table" | "file"; borderColor: string }[] = [
+  { test: (h) => /sheet\s*url.*curriculum/i.test(h), label: "Curriculum Sheet", iconType: "table", borderColor: "border-l-green-500" },
+  { test: (h) => /sem\s*1\s*detailed\s*syllabus/i.test(h), label: "Sem 1 Syllabus", iconType: "file", borderColor: "border-l-blue-500" },
+  { test: (h) => /sem\s*2\s*detailed\s*syllabus/i.test(h), label: "Sem 2 Syllabus", iconType: "file", borderColor: "border-l-blue-500" },
 ];
 
-function getDocLinks(row: Record<string, string>, headers: string[]): { label: string; url: string; color: string; hoverColor: string }[] {
-  const results: { label: string; url: string; color: string; hoverColor: string }[] = [];
+function getDocLinks(row: Record<string, string>, headers: string[]): { label: string; url: string; iconType: "table" | "file"; borderColor: string }[] {
+  const results: { label: string; url: string; iconType: "table" | "file"; borderColor: string }[] = [];
   for (const doc of DOC_LINKS) {
     const col = headers.find((h) => doc.test(h));
     if (!col) continue;
     const val = (row[col] || "").trim();
     if (val && /^https?:\/\//.test(val)) {
-      results.push({ label: doc.label, url: val, color: doc.color, hoverColor: doc.hoverColor });
+      results.push({ label: doc.label, url: val, iconType: doc.iconType, borderColor: doc.borderColor });
     }
   }
   return results;
 }
 
-// Grouping for detail sections
+// Grouping for detail sections — order: BOS Status, Documents, Meeting Details, Curriculum, Other
 const SECTION_MATCHERS: { title: string; test: (h: string) => boolean }[] = [
   { title: "BOS Status", test: (h) => /sem(ester)?\s*\d.*bos/i.test(h) },
   { title: "Meeting Details", test: (h) => /meeting|action\s*item|timeline.*close|number.*meeting/i.test(h) },
@@ -145,8 +138,8 @@ function classifyField(h: string): string {
 
 function QuickInfoPill({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 text-xs font-medium">
-      <Icon className="w-3 h-3 text-slate-400" />
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium">
+      <Icon className="w-3 h-3 text-slate-400 dark:text-slate-400" />
       {children}
     </span>
   );
@@ -199,6 +192,7 @@ function UniversityRow({
       groups[section].push(h);
     });
 
+    // Ordered: BOS Status → Meeting Details → Curriculum → Other
     const ordered: { title: string; fields: string[] }[] = [];
     for (const s of SECTION_MATCHERS) {
       if (groups[s.title]) ordered.push({ title: s.title, fields: groups[s.title] });
@@ -208,15 +202,33 @@ function UniversityRow({
   }, [headers, row, activeCol, studentField, startDateField]);
 
   const statusBadgeClass =
-    statusKey === "0" || statusKey === "1" ? "bg-red-500/20 text-red-400 border-red-500/30" :
-    statusKey === "2" || statusKey === "3" ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
-    statusKey === "4" || statusKey === "5" ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" :
-    statusKey === "6" || statusKey === "7" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-    "bg-slate-700 text-slate-300 border-slate-600";
+    statusKey === "0" || statusKey === "1" ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30" :
+    statusKey === "2" || statusKey === "3" ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30" :
+    statusKey === "4" || statusKey === "5" ? "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-500/30" :
+    statusKey === "6" || statusKey === "7" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" :
+    "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600";
+
+  // Insert Documents & Sheets section after BOS Status
+  const orderedSections = useMemo(() => {
+    const result: { title: string; fields: string[]; type: "fields" | "docs" }[] = [];
+    let bosInserted = false;
+    for (const section of groupedDetails) {
+      result.push({ title: section.title, fields: section.fields, type: "fields" });
+      if (section.title === "BOS Status" && docLinks.length > 0) {
+        result.push({ title: "Documents & Sheets", fields: [], type: "docs" });
+        bosInserted = true;
+      }
+    }
+    // If no BOS Status section exists, put docs first
+    if (!bosInserted && docLinks.length > 0) {
+      result.unshift({ title: "Documents & Sheets", fields: [], type: "docs" });
+    }
+    return result;
+  }, [groupedDetails, docLinks]);
 
   return (
     <div
-      className="bg-slate-800 hover:bg-slate-800/80 transition-all duration-200 hover:-translate-y-px hover:shadow-lg hover:shadow-slate-900/50 rounded-xl border border-slate-700 mb-2"
+      className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all duration-200 hover:-translate-y-px hover:shadow-lg hover:shadow-slate-200/50 dark:hover:shadow-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 mb-2"
       data-testid={`modal-row-${index}`}
     >
       {/* CARD HEADER */}
@@ -225,22 +237,22 @@ function UniversityRow({
         {logo ? (
           <img
             src={logo} alt={name}
-            className="h-12 w-12 rounded-lg object-contain bg-white/10 border border-slate-600 shrink-0"
+            className="h-12 w-12 rounded-lg object-contain bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-slate-600 shrink-0"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="h-12 w-12 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center shrink-0">
-            <span className="text-base font-bold text-slate-300">{initial}</span>
+          <div className="h-12 w-12 rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center shrink-0">
+            <span className="text-base font-bold text-slate-500 dark:text-slate-300">{initial}</span>
           </div>
         )}
 
         {/* Name + code + quick info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-bold text-white text-base truncate">{name}</p>
+            <p className="font-bold text-slate-900 dark:text-white text-base truncate">{name}</p>
             {code && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-700 text-slate-400 text-xs font-medium shrink-0">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs font-medium shrink-0">
                 {code}
               </span>
             )}
@@ -251,20 +263,6 @@ function UniversityRow({
             {students && <QuickInfoPill icon={GraduationCap}>{students}</QuickInfoPill>}
             {startDate && <QuickInfoPill icon={Calendar}>{startDate}</QuickInfoPill>}
           </div>
-          {/* Document link buttons */}
-          {docLinks.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              {docLinks.map((doc) => (
-                <a
-                  key={doc.label}
-                  href={doc.url} target="_blank" rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${doc.color} ${doc.hoverColor} text-white text-xs font-medium transition-all duration-150 hover:brightness-110 shadow-sm`}
-                >
-                  {doc.label} <ExternalLink className="w-3 h-3" />
-                </a>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Right side: status badge */}
@@ -278,10 +276,10 @@ function UniversityRow({
       </div>
 
       {/* SEPARATOR + EXPAND BUTTON */}
-      <div className="border-t border-slate-700/50 px-5 py-2 flex justify-between items-center">
+      <div className="border-t border-slate-200 dark:border-slate-700/50 px-5 py-2 flex justify-between items-center">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
         >
           <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-90" : ""}`} />
           {expanded ? "Less Details" : "More Details"}
@@ -297,45 +295,51 @@ function UniversityRow({
           opacity: expanded ? 1 : 0,
         }}
       >
-        <div className="px-5 pb-5 pt-1 border-t border-slate-700/50">
-          {groupedDetails.map((section) => (
+        <div className="px-5 pb-5 pt-1 border-t border-slate-200 dark:border-slate-700/50">
+          {orderedSections.map((section) => (
             <div key={section.title} className="mt-4 first:mt-2">
-              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{section.title}</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
-                {section.fields.map((h) => {
-                  const val = row[h] || "";
-                  const isLong = val.length > 60;
-                  return (
-                    <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</span>
-                      <p className="text-slate-100 mt-0.5 whitespace-pre-wrap break-words leading-relaxed">{val}</p>
-                    </div>
-                  );
-                })}
-              </div>
+              <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{section.title}</h4>
+
+              {/* Documents & Sheets section */}
+              {section.type === "docs" && (
+                <div className="flex flex-wrap gap-2">
+                  {docLinks.map((doc) => (
+                    <a
+                      key={doc.label}
+                      href={doc.url} target="_blank" rel="noopener noreferrer"
+                      className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border-l-4 ${doc.borderColor} bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-sm font-medium transition-all duration-150`}
+                    >
+                      {doc.iconType === "table"
+                        ? <Table className="w-[18px] h-[18px] text-green-500" />
+                        : <FileText className="w-[18px] h-[18px] text-blue-500" />
+                      }
+                      {doc.label}
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {/* Regular field sections */}
+              {section.type === "fields" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                  {section.fields.map((h) => {
+                    const val = row[h] || "";
+                    const isLong = val.length > 60;
+                    return (
+                      <div key={h} className={isLong ? "col-span-1 sm:col-span-2" : ""}>
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{h}</span>
+                        <p className="text-slate-800 dark:text-slate-100 mt-0.5 whitespace-pre-wrap break-words leading-relaxed">{val}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
 
-          {groupedDetails.length === 0 && docLinks.length === 0 && (
+          {orderedSections.length === 0 && (
             <p className="text-slate-500 text-xs mt-3">No additional details available.</p>
-          )}
-
-          {/* Documents section */}
-          {docLinks.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Documents</h4>
-              <div className="flex flex-col gap-2">
-                {docLinks.map((doc) => (
-                  <a
-                    key={doc.label}
-                    href={doc.url} target="_blank" rel="noopener noreferrer"
-                    className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl ${doc.color} ${doc.hoverColor} text-white text-sm font-semibold transition-all duration-200 hover:brightness-110 shadow-md`}
-                  >
-                    {doc.label} <ExternalLink className="w-4 h-4" />
-                  </a>
-                ))}
-              </div>
-            </div>
           )}
         </div>
       </div>
@@ -365,12 +369,12 @@ function UniversityModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col p-0 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50">
+      <DialogContent className="max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col p-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/50">
         {/* Modal header */}
-        <div className="bg-slate-900 px-6 py-5 border-b border-slate-700">
+        <div className="bg-white dark:bg-slate-900 px-6 py-5 border-b border-slate-200 dark:border-slate-700">
           <DialogHeader>
-            <DialogTitle className="text-white text-lg font-bold leading-snug">{title}</DialogTitle>
-            <p className="text-slate-400 text-sm mt-1">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
+            <DialogTitle className="text-slate-900 dark:text-white text-lg font-bold leading-snug">{title}</DialogTitle>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{rows.length} {rows.length === 1 ? "University" : "Universities"}</p>
           </DialogHeader>
           <div className="relative mt-4">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -378,14 +382,14 @@ function UniversityModal({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search universities…"
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-800 text-white placeholder-slate-500 text-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               data-testid="input-detail-search"
             />
           </div>
         </div>
 
         {/* University cards list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50 dark:bg-slate-900">
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-slate-500">
               <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -420,7 +424,7 @@ function UniversityModal({
 function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const [activeSem, setActiveSem] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalKey, setModalKey] = useState<string | null>(null); // null = blank status row
+  const [modalKey, setModalKey] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch, isRefetching, dataUpdatedAt } = useQuery({
     queryKey: ["sheetData", config.sheetId, tabName, config.useServerConfig],
@@ -432,7 +436,6 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
   const headers: string[] = useMemo(() => data?.headers ?? [], [data]);
 
-  // Debug: log raw sheet headers and first row whenever data loads
   useEffect(() => {
     if (data) {
       console.log("Sheet headers:", data.headers);
@@ -440,7 +443,6 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
     }
   }, [data]);
 
-  // semCols is { sem: number; col: string }[] — only semesters whose column exists in the sheet
   const semCols = useMemo(() => detectSemesterColumns(headers), [headers]);
 
   const uniField      = useMemo(() => detectField(headers, "University"), [headers]);
@@ -454,11 +456,9 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   useEffect(() => { setActiveSem(0); }, [tabName]);
 
   const semIndex = Math.min(activeSem, Math.max(0, semCols.length - 1));
-  // Derive activeCol from the selected entry — reading ONLY that semester's column
   const activeEntry = semCols[semIndex];
   const activeCol = activeEntry?.col ?? "";
 
-  // Build pivot rows: { key: string | null, label: string, rows: [...] }
   const BLANK_LABEL = "Timeline for BOS is not yet decided";
 
   const pivotRows = useMemo(() => {
@@ -473,7 +473,6 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
       buckets[bucketKey].push(row);
     });
 
-    // Sort: blank first, then 0, 1, 2, 3 …
     const keys = Object.keys(buckets).sort((a, b) => {
       if (a === "__blank__") return -1;
       if (b === "__blank__") return 1;
@@ -491,7 +490,6 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
   const semLabel = activeEntry ? `Semester ${activeEntry.sem} BOS Status` : "BOS Status";
 
-  // Find modal rows
   const modalRows = useMemo(() => {
     if (!modalOpen) return [];
     return pivotRows.find((r) => r.key === modalKey)?.rows ?? [];
@@ -531,7 +529,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
   return (
     <div className="space-y-5">
-      {/* Semester selector — only shown when more than one semester column exists */}
+      {/* Semester selector */}
       {semCols.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {semCols.map((entry, i) => (
@@ -595,8 +593,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
       {/* Pivot table */}
       <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_140px] bg-slate-800 dark:bg-slate-950 text-white text-sm font-semibold">
-          <div className="px-5 py-3.5 border-r border-slate-700">{semLabel}</div>
+        <div className="grid grid-cols-[1fr_140px] bg-slate-700 dark:bg-slate-950 text-white text-sm font-semibold">
+          <div className="px-5 py-3.5 border-r border-slate-600 dark:border-slate-700">{semLabel}</div>
           <div className="px-5 py-3.5 text-right">Count of Universities</div>
         </div>
 
@@ -680,7 +678,6 @@ function BatchSelector({
 
   if (tabs.length === 0) return null;
 
-  // Default tab is last in the list (index 0 in our reversed array = last sheet tab)
   const defaultTab = tabs[0];
   const otherTabs = tabs.slice(1);
   const isDefault = activeBatch === 0;
@@ -737,15 +734,12 @@ export default function Dashboard() {
   const config = loadConfig();
   const [activeBatch, setActiveBatch] = useState(0);
 
-  // Build dynamic tab list from config.sheetNames, filtered and reversed (latest last → first)
   const statusTabs = useMemo(() => {
     const allTabs = config?.sheetNames ?? [];
     const filtered = allTabs.filter(isStatusTab);
-    // Reverse so the last tab in the sheet (most recent) is first/default
     return [...filtered].reverse();
   }, [config?.sheetNames]);
 
-  // Dynamic title from spreadsheet
   const dashboardTitle = config?.spreadsheetTitle || "BOS Approval Status";
 
   if (!config) { setLocation("/"); return null; }
@@ -758,13 +752,13 @@ export default function Dashboard() {
         {/* Page header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white pl-10 md:pl-0" data-testid="text-report-title">
+            <div className="flex items-center justify-between pt-8 md:pt-0">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white pl-0 md:pl-[60px]" data-testid="text-report-title">
                 {dashboardTitle}
               </h1>
               <div className="md:hidden"><LogoutButton /></div>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">BOS status tracking across NIAT cohorts</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 md:pl-[60px]">BOS status tracking across NIAT cohorts</p>
           </div>
           <div className="flex items-end gap-4">
             <BatchSelector activeBatch={activeBatch} onSelect={setActiveBatch} tabs={statusTabs} />
