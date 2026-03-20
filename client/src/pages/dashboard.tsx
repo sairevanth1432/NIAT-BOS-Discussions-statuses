@@ -15,13 +15,20 @@ import { useLocation } from "wouter";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { LogoutButton } from "@/components/LogoutButton";
 
-// ─── Batches ──────────────────────────────────────────────────────────────────
+// ─── Tab filtering ───────────────────────────────────────────────────────────
 
-const BATCHES = [
-  { label: "Batch 4", tabName: "Statuses NIAT'26" },
-  { label: "Batch 3", tabName: "Statuses NIAT'25" },
-  { label: "Batch 2", tabName: "Statuses NIAT'24" },
-];
+// Only show tabs that look like status/university data tabs
+const EXCLUDED_TABS = ["bos status dropdowns", "transcripts"];
+
+function isStatusTab(name: string): boolean {
+  const lc = name.trim().toLowerCase();
+  if (EXCLUDED_TABS.some((ex) => lc === ex)) return false;
+  // Include tabs starting with "Statuses" or containing university data
+  if (lc.startsWith("statuses")) return true;
+  // Also include if it doesn't match known non-status patterns
+  // Be permissive: exclude only known non-status tabs
+  return !lc.includes("dropdown") && !lc.includes("transcript");
+}
 
 // ─── Status definitions ───────────────────────────────────────────────────────
 
@@ -660,8 +667,8 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 // ─── Batch selector ───────────────────────────────────────────────────────────
 
 function BatchSelector({
-  activeBatch, onSelect,
-}: { activeBatch: number; onSelect: (i: number) => void }) {
+  activeBatch, onSelect, tabs,
+}: { activeBatch: number; onSelect: (i: number) => void; tabs: string[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -671,45 +678,48 @@ function BatchSelector({
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const latest = BATCHES[0];
-  const older = BATCHES.slice(1);
-  const isLatest = activeBatch === 0;
+  if (tabs.length === 0) return null;
+
+  // Default tab is last in the list (index 0 in our reversed array = last sheet tab)
+  const defaultTab = tabs[0];
+  const otherTabs = tabs.slice(1);
+  const isDefault = activeBatch === 0;
 
   return (
     <div className="flex items-center gap-2" ref={ref}>
       <button
         onClick={() => onSelect(0)}
         className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-          isLatest ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+          isDefault ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
         }`}
         data-testid="tab-batch-latest"
       >
-        {latest.label}
+        {defaultTab}
       </button>
-      {older.length > 0 && (
+      {otherTabs.length > 0 && (
         <div className="relative">
           <button
             onClick={() => setOpen(!open)}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-              !isLatest ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+              !isDefault ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
             }`}
             data-testid="dropdown-older-batches"
           >
-            {!isLatest ? BATCHES[activeBatch].label : "Previous Batches"}
+            {!isDefault ? tabs[activeBatch] : "Previous Batches"}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
           {open && (
             <div className="absolute right-0 top-full mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 min-w-[130px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-              {older.map((b, i) => (
+              {otherTabs.map((tabName, i) => (
                 <button
-                  key={b.tabName}
+                  key={tabName}
                   onClick={() => { onSelect(i + 1); setOpen(false); }}
                   className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                     activeBatch === i + 1 ? "bg-blue-50 dark:bg-slate-700 text-blue-700 dark:text-blue-400 font-semibold" : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   }`}
-                  data-testid={`dropdown-item-${b.label}`}
+                  data-testid={`dropdown-item-${tabName}`}
                 >
-                  {b.label}
+                  {tabName}
                 </button>
               ))}
             </div>
@@ -727,7 +737,20 @@ export default function Dashboard() {
   const config = loadConfig();
   const [activeBatch, setActiveBatch] = useState(0);
 
+  // Build dynamic tab list from config.sheetNames, filtered and reversed (latest last → first)
+  const statusTabs = useMemo(() => {
+    const allTabs = config?.sheetNames ?? [];
+    const filtered = allTabs.filter(isStatusTab);
+    // Reverse so the last tab in the sheet (most recent) is first/default
+    return [...filtered].reverse();
+  }, [config?.sheetNames]);
+
+  // Dynamic title from spreadsheet
+  const dashboardTitle = config?.spreadsheetTitle || "BOS Approval Status";
+
   if (!config) { setLocation("/"); return null; }
+
+  const activeTabName = statusTabs[activeBatch] ?? statusTabs[0] ?? "";
 
   return (
     <Layout>
@@ -736,23 +759,30 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white" data-testid="text-report-title">
-                {config.spreadsheetTitle || "University BOS Dashboard"}
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white pl-10 md:pl-0" data-testid="text-report-title">
+                {dashboardTitle}
               </h1>
               <div className="md:hidden"><LogoutButton /></div>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">BOS status tracking across NIAT cohorts</p>
           </div>
           <div className="flex items-end gap-4">
-            <BatchSelector activeBatch={activeBatch} onSelect={setActiveBatch} />
+            <BatchSelector activeBatch={activeBatch} onSelect={setActiveBatch} tabs={statusTabs} />
             <div className="hidden md:block"><LogoutButton /></div>
           </div>
         </div>
 
         {/* Pivot table */}
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={BATCHES[activeBatch].tabName}>
-          <PivotTable tabName={BATCHES[activeBatch].tabName} config={config} />
-        </div>
+        {activeTabName ? (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={activeTabName}>
+            <PivotTable tabName={activeTabName} config={config} />
+          </div>
+        ) : (
+          <div className="py-20 text-center text-muted-foreground">
+            <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="font-semibold">No status tabs found in this spreadsheet.</p>
+          </div>
+        )}
       </div>
     </Layout>
   );
