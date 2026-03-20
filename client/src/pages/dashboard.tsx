@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSheetData, loadConfig } from "@/lib/sheets-api";
+import { fetchSheetData, loadConfig, validateSheet, saveConfig } from "@/lib/sheets-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -586,7 +586,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
 
       {/* Section heading */}
       <div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">NIAT BOS Approval Status</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">BOS Approval Status</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Click any row to view universities</p>
       </div>
 
@@ -734,13 +734,32 @@ export default function Dashboard() {
   const config = loadConfig();
   const [activeBatch, setActiveBatch] = useState(0);
 
+  // Always fetch fresh sheet metadata (title + tab names) from the API
+  const { data: sheetMeta } = useQuery({
+    queryKey: ["sheetMeta", config?.sheetId, config?.useServerConfig],
+    queryFn: async () => {
+      if (!config) return null;
+      const result = await validateSheet(config);
+      if (result.valid) {
+        // Update stored config with fresh metadata
+        config.sheetNames = result.sheetNames;
+        config.spreadsheetTitle = result.title;
+        saveConfig(config);
+        return { sheetNames: result.sheetNames ?? [], title: result.title ?? "" };
+      }
+      return null;
+    },
+    enabled: !!config,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const statusTabs = useMemo(() => {
-    const allTabs = config?.sheetNames ?? [];
+    const allTabs = sheetMeta?.sheetNames ?? config?.sheetNames ?? [];
     const filtered = allTabs.filter(isStatusTab);
     return [...filtered].reverse();
-  }, [config?.sheetNames]);
+  }, [sheetMeta?.sheetNames, config?.sheetNames]);
 
-  const dashboardTitle = config?.spreadsheetTitle || "BOS Approval Status";
+  const dashboardTitle = sheetMeta?.title || config?.spreadsheetTitle || "BOS Approval Status";
 
   if (!config) { setLocation("/"); return null; }
 
