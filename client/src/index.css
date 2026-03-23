@@ -1,6 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+* {
+  cursor: default;
+}
+
+a, button, [role="button"], summary, .cursor-pointer {
+  cursor: pointer;
+}
+
+input, textarea, select, [contenteditable="true"] {
+  cursor: text;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
