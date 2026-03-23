@@ -493,10 +493,11 @@ function UniversityModal({
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
 function StatCard({
-  label, value, icon: Icon, accentColor, borderColor, pulse, delay,
+  label, value, icon: Icon, accentColor, borderColor, pulse, delay, onClick,
 }: {
   label: string; value: number; icon: React.ElementType;
   accentColor: string; borderColor: string; pulse?: boolean; delay: number;
+  onClick?: () => void;
 }) {
   const animated = useCountUp(value, 600);
   return (
@@ -504,8 +505,10 @@ function StatCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay }}
-      whileHover={{ y: -2 }}
-      className={`glass-card rounded-xl border border-slate-200/80 dark:border-slate-700/80 border-l-4 ${borderColor} p-4 flex items-center gap-3.5 cursor-default group hover:shadow-lg transition-shadow duration-200`}
+      whileHover={{ y: -2, scale: 1.01 }}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      onClick={onClick}
+      className={`glass-card rounded-xl border border-slate-200/80 dark:border-slate-700/80 border-l-4 ${borderColor} p-4 flex items-center gap-3.5 ${onClick ? "cursor-pointer" : "cursor-default"} group hover:shadow-lg transition-shadow duration-200`}
     >
       <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${accentColor} shrink-0`}>
         <Icon className={`w-5 h-5 text-white ${pulse ? "animate-pulse" : ""}`} />
@@ -600,6 +603,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const [activeSem, setActiveSem] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalKey, setModalKey] = useState<string | null>(null);
+  const [statCardModal, setStatCardModal] = useState<"total" | "approved" | "inProgress" | "needsAttention" | null>(null);
   const [refreshSpin, setRefreshSpin] = useState(false);
   const [showSyncToast, setShowSyncToast] = useState(false);
   const prevUpdatedAt = useRef(0);
@@ -699,6 +703,29 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
     ? BLANK_LABEL
     : `${modalKey}. ${STATUS_LABELS[modalKey] ?? modalKey}`;
 
+  // Stat card drill-down
+  const allUniRows = useMemo(() => {
+    if (!data || !activeCol) return [];
+    return (data.data as Record<string, string>[]).filter((r) => r[uniField]?.trim());
+  }, [data, activeCol, uniField]);
+
+  const statCardRows = useMemo(() => {
+    if (!statCardModal) return [];
+    if (statCardModal === "total") return allUniRows;
+    return allUniRows.filter((r) => {
+      const k = getStatusKey(r[activeCol] || "");
+      if (statCardModal === "approved") return k === "6" || k === "7";
+      if (statCardModal === "inProgress") return k === "2" || k === "3" || k === "4" || k === "5";
+      if (statCardModal === "needsAttention") return k === "0" || k === "1" || k === null;
+      return false;
+    });
+  }, [statCardModal, allUniRows, activeCol]);
+
+  const statCardTitle = statCardModal === "total" ? "Total Universities"
+    : statCardModal === "approved" ? "Approved"
+    : statCardModal === "inProgress" ? "In Progress"
+    : statCardModal === "needsAttention" ? "Needs Attention" : "";
+
   const handleRefresh = useCallback(() => {
     setRefreshSpin(true);
     refetch();
@@ -751,10 +778,10 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
     <div className="space-y-5">
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total Universities" value={grandTotal} icon={Building2} accentColor="bg-blue-500" borderColor="border-l-blue-500" delay={0.05} />
-        <StatCard label="Approved" value={approved} icon={CheckCircle2} accentColor="bg-emerald-500" borderColor="border-l-emerald-500" delay={0.1} />
-        <StatCard label="In Progress" value={inProgress} icon={Clock} accentColor="bg-orange-500" borderColor="border-l-orange-500" delay={0.15} />
-        <StatCard label="Needs Attention" value={needsAttention} icon={AlertTriangle} accentColor="bg-red-500" borderColor="border-l-red-500" pulse delay={0.2} />
+        <StatCard label="Total Universities" value={grandTotal} icon={Building2} accentColor="bg-blue-500" borderColor="border-l-blue-500" delay={0.05} onClick={() => setStatCardModal("total")} />
+        <StatCard label="Approved" value={approved} icon={CheckCircle2} accentColor="bg-emerald-500" borderColor="border-l-emerald-500" delay={0.1} onClick={() => setStatCardModal("approved")} />
+        <StatCard label="In Progress" value={inProgress} icon={Clock} accentColor="bg-orange-500" borderColor="border-l-orange-500" delay={0.15} onClick={() => setStatCardModal("inProgress")} />
+        <StatCard label="Needs Attention" value={needsAttention} icon={AlertTriangle} accentColor="bg-red-500" borderColor="border-l-red-500" pulse delay={0.2} onClick={() => setStatCardModal("needsAttention")} />
       </div>
 
       {/* Progress bar */}
@@ -904,6 +931,23 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
         onClose={() => setModalOpen(false)}
         title={modalTitle}
         rows={modalRows}
+        headers={headers}
+        uniField={uniField}
+        codeField={codeField}
+        cityField={cityField}
+        deliveryField={deliveryField}
+        logoField={logoField}
+        activeCol={activeCol}
+        studentField={studentField}
+        startDateField={startDateField}
+      />
+
+      {/* Stat card drill-down modal */}
+      <UniversityModal
+        open={statCardModal !== null}
+        onClose={() => setStatCardModal(null)}
+        title={`${statCardTitle} — ${statCardRows.length} ${statCardRows.length === 1 ? "University" : "Universities"}`}
+        rows={statCardRows}
         headers={headers}
         uniField={uniField}
         codeField={codeField}
