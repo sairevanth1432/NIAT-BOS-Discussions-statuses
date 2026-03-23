@@ -99,23 +99,36 @@ function doExportCSV(rows: Record<string, string>[], headers: string[], filename
 const HEADER_FIELDS_LC = new Set(["university", "logo url", "code", "city", "delivery"]);
 function isLogoCol(h: string) { return /logo/i.test(h); }
 function isLinkCol(h: string) { return /sheet\s*link/i.test(h); }
-function isDocUrlCol(h: string) { return /sheet\s*url.*curriculum|sem\s*\d+\s*detailed\s*syllabus\s*url/i.test(h); }
-
-// Document link definitions
-const DOC_LINKS: { test: (h: string) => boolean; label: string; iconType: "table" | "file"; borderColor: string }[] = [
-  { test: (h) => /sheet\s*url.*curriculum/i.test(h), label: "Curriculum Sheet", iconType: "table", borderColor: "border-l-green-500" },
-  { test: (h) => /sem\s*1\s*detailed\s*syllabus/i.test(h), label: "Sem 1 Syllabus", iconType: "file", borderColor: "border-l-blue-500" },
-  { test: (h) => /sem\s*2\s*detailed\s*syllabus/i.test(h), label: "Sem 2 Syllabus", iconType: "file", borderColor: "border-l-blue-500" },
-];
+function isDocUrlCol(h: string) { return /sheet\s*url.*curriculum/i.test(h) || isSemSyllabusCol(h) !== 0; }
+function isSemSyllabusCol(h: string): number {
+  const m = h.match(/sem(?:ester)?\s*([1-8])\b/i);
+  if (!m) return 0;
+  return /syllab|detailed|url|doc/i.test(h) ? parseInt(m[1], 10) : 0;
+}
 
 function getDocLinks(row: Record<string, string>, headers: string[]): { label: string; url: string; iconType: "table" | "file"; borderColor: string }[] {
   const results: { label: string; url: string; iconType: "table" | "file"; borderColor: string }[] = [];
-  for (const doc of DOC_LINKS) {
-    const col = headers.find((h) => doc.test(h));
-    if (!col) continue;
+  // Curriculum Sheet first
+  const currCol = headers.find((h) => /sheet\s*url.*curriculum/i.test(h));
+  if (currCol) {
+    const val = (row[currCol] || "").trim();
+    if (val && /^https?:\/\//.test(val)) {
+      results.push({ label: "Curriculum Sheet", url: val, iconType: "table", borderColor: "border-l-green-500" });
+    }
+  }
+  // Dynamically detect Sem 1-8 syllabus columns, ordered numerically
+  const semEntries: { sem: number; col: string }[] = [];
+  for (const h of headers) {
+    const sem = isSemSyllabusCol(h);
+    if (sem > 0 && !semEntries.some((e) => e.sem === sem)) {
+      semEntries.push({ sem, col: h });
+    }
+  }
+  semEntries.sort((a, b) => a.sem - b.sem);
+  for (const { sem, col } of semEntries) {
     const val = (row[col] || "").trim();
     if (val && /^https?:\/\//.test(val)) {
-      results.push({ label: doc.label, url: val, iconType: doc.iconType, borderColor: doc.borderColor });
+      results.push({ label: `Sem ${sem} Syllabus`, url: val, iconType: "file", borderColor: "border-l-blue-500" });
     }
   }
   return results;
