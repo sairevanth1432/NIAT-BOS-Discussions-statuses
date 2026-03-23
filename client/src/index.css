@@ -144,24 +144,66 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    background: linear-gradient(135deg, hsl(210 40% 98%) 0%, hsl(0 0% 100%) 100%);
+  }
+  .dark body {
+    background: linear-gradient(135deg, hsl(222 47% 6%) 0%, hsl(222 47% 11%) 100%);
+  }
+  ::selection {
+    background: hsl(217 91% 60% / 0.3);
   }
 }
 
-/* Dark scrollbars */
-.dark ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Glassmorphism utility */
+.glass-card {
+  background: hsl(0 0% 100% / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
-.dark ::-webkit-scrollbar-track {
-  background: hsl(222 47% 11%);
+.dark .glass-card {
+  background: hsl(222 47% 11% / 0.7);
+}
+
+/* Modal entrance animation */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+[data-state="open"].animate-modal-in,
+.data-\[state\=open\]\:animate-modal-in[data-state="open"] {
+  animation: modal-in 0.2s ease-out;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(215 20% 75%);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 20% 60%);
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: hsl(215 20% 35%);
-  border-radius: 4px;
+  background: hsl(215 20% 30%);
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(215 20% 45%);
+  background: hsl(215 20% 40%);
+}
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
 }
 .dark {
-  scrollbar-color: hsl(215 20% 35%) hsl(222 47% 11%);
+  scrollbar-color: hsl(215 20% 30%) transparent;
 }
