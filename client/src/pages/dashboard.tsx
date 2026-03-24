@@ -603,7 +603,7 @@ function SyncToast({ show }: { show: boolean }) {
 function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const [activeSem, setActiveSem] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalKey, setModalKey] = useState<string | null>(null);
+  const [modalKey, setModalKey] = useState<string | null>(null); // full status text or null for blank
   const [statCardModal, setStatCardModal] = useState<"total" | "approved" | "inProgress" | "needsAttention" | null>(null);
   const [refreshSpin, setRefreshSpin] = useState(false);
   const [showSyncToast, setShowSyncToast] = useState(false);
@@ -657,11 +657,12 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const pivotRows = useMemo(() => {
     if (!data || !activeCol) return [];
     const rows = (data.data as Record<string, string>[]).filter((r) => r[uniField]?.trim());
+    // Group by FULL status text so duplicate number prefixes (e.g. two "3." statuses) stay separate
     const buckets: Record<string, Record<string, string>[]> = {};
 
     rows.forEach((row) => {
-      const key = getStatusKey(row[activeCol] || "");
-      const bucketKey = key === null ? "__blank__" : key;
+      const raw = (row[activeCol] || "").trim();
+      const bucketKey = raw === "" ? "__blank__" : raw;
       if (!buckets[bucketKey]) buckets[bucketKey] = [];
       buckets[bucketKey].push(row);
     });
@@ -669,12 +670,18 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
     const keys = Object.keys(buckets).sort((a, b) => {
       if (a === "__blank__") return -1;
       if (b === "__blank__") return 1;
-      return Number(a) - Number(b);
+      const numA = getStatusKey(a);
+      const numB = getStatusKey(b);
+      const nA = numA !== null ? Number(numA) : Infinity;
+      const nB = numB !== null ? Number(numB) : Infinity;
+      if (nA !== nB) return nA - nB;
+      return a.localeCompare(b); // same number prefix → alphabetical
     });
 
     return keys.map((k) => ({
-      key: k === "__blank__" ? null : k,
-      label: k === "__blank__" ? BLANK_LABEL : `${k}. ${STATUS_LABELS[k] ?? k}`,
+      key: k === "__blank__" ? null : k, // full status text or null
+      numKey: k === "__blank__" ? null : getStatusKey(k), // number prefix for color coding
+      label: k === "__blank__" ? BLANK_LABEL : k, // show exact text from sheet
       rows: buckets[k],
     }));
   }, [data, activeCol, uniField]);
@@ -682,11 +689,11 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
   const grandTotal = useMemo(() => pivotRows.reduce((s, r) => s + r.rows.length, 0), [pivotRows]);
   const animatedGrandTotal = useCountUp(grandTotal, 600);
 
-  // Compute stat counts
+  // Compute stat counts using number prefix
   const { approved, inProgress, needsAttention } = useMemo(() => {
     let approved = 0, inProgress = 0, needsAttention = 0;
     for (const row of pivotRows) {
-      const k = row.key;
+      const k = row.numKey;
       if (k === "6" || k === "7") approved += row.rows.length;
       else if (k === "2" || k === "3" || k === "4" || k === "5") inProgress += row.rows.length;
       else needsAttention += row.rows.length; // 0, 1, null
@@ -700,9 +707,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
     if (!modalOpen) return [];
     return pivotRows.find((r) => r.key === modalKey)?.rows ?? [];
   }, [modalOpen, modalKey, pivotRows]);
-  const modalTitle = modalKey === null
-    ? BLANK_LABEL
-    : `${modalKey}. ${STATUS_LABELS[modalKey] ?? modalKey}`;
+  const modalTitle = modalKey === null ? BLANK_LABEL : modalKey;
 
   // Stat card drill-down
   const allUniRows = useMemo(() => {
@@ -881,7 +886,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
         ) : (
           pivotRows.map((row, i) => {
             const isBlank = row.key === null;
-            const cc = isBlank ? "text-slate-400 dark:text-slate-500" : countColor(row.key);
+            const cc = isBlank ? "text-slate-400 dark:text-slate-500" : countColor(row.numKey);
 
             return (
               <motion.button
@@ -893,7 +898,7 @@ function PivotTable({ tabName, config }: { tabName: string; config: any }) {
                 className={`w-full grid grid-cols-[1fr_140px] text-left text-sm transition-all duration-150 cursor-pointer group
                   ${i % 2 === 0 ? "bg-white/80 dark:bg-slate-900/80" : "bg-slate-50/80 dark:bg-slate-800/40"}
                   hover:bg-blue-50/80 dark:hover:bg-slate-700/80 border-t border-slate-200/80 dark:border-slate-700/50`}
-                data-testid={`pivot-row-${row.key ?? "blank"}`}
+                data-testid={`pivot-row-${row.numKey ?? "blank"}-${i}`}
               >
                 <div className={`px-5 py-3.5 border-r border-slate-200/80 dark:border-slate-700/50 flex items-center gap-2 ${isBlank ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}>
                   <span className="flex-1">{row.label}</span>
