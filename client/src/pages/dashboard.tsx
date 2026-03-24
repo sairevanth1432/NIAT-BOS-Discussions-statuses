@@ -55,16 +55,17 @@ function countColor(key: string | null): string {
 function detectSemesterColumns(headers: string[]): { sem: number; col: string }[] {
   const result: { sem: number; col: string }[] = [];
   for (let sem = 1; sem <= 8; sem++) {
+    // Use word-boundary regex so "Sem 1" does NOT match "Sem 10", "Sem 12", etc.
+    const semPattern = new RegExp(`(?:sem|semester)\\s*${sem}\\b`, "i");
     const col = headers.find((h) => {
-      const t = h.trim().toLowerCase().replace(/\s+/g, " ");
-      return (
-        (t.includes(`sem ${sem}`) || t.includes(`semester ${sem}`)) &&
-        t.includes("bos")
-      );
+      const t = h.trim().replace(/\s+/g, " ");
+      return semPattern.test(t) && /bos/i.test(t);
     });
     if (col) {
-      console.log(`Matched BOS column for Semester ${sem}:`, col);
+      console.log(`Semester ${sem} → using column: "${col}" at index ${headers.indexOf(col)}`);
       result.push({ sem, col });
+    } else {
+      console.log(`Semester ${sem} → no matching BOS column found`);
     }
   }
   return result;
@@ -165,7 +166,7 @@ function getDocLinks(row: Record<string, string>, headers: string[]): { label: s
 
 // Grouping for detail sections — order: BOS Status, Documents, Meeting Details, Curriculum, Other
 const SECTION_MATCHERS: { title: string; test: (h: string) => boolean }[] = [
-  { title: "BOS Status", test: (h) => /sem(ester)?\s*\d.*bos/i.test(h) },
+  { title: "BOS Status", test: (h) => /sem(ester)?\s*\d+\b.*bos/i.test(h) },
   { title: "Meeting Details", test: (h) => /meeting|action\s*item|timeline.*close|number.*meeting/i.test(h) },
   { title: "Curriculum", test: (h) => /course|curriculum|framework|evaluation|syllab/i.test(h) },
 ];
